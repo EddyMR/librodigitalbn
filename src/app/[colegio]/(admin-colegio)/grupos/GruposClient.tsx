@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Users, BookOpen, Plus, Trash2, Pencil, Search,
   X, Check, UserMinus, UserPlus, ChevronRight,
@@ -63,10 +64,18 @@ export default function GruposClient({
   colegioId,
   codigoColegio,
 }: Props) {
+  const router = useRouter()
   const [grupos, setGrupos] = useState(initialGrupos)
   const [alumnos, setAlumnos] = useState(initialAlumnos)
   const [libroCountMap, setLibroCountMap] = useState(initialLibroCountMap)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+
+  // Refresh data when page regains focus (e.g. returning from crear catequista)
+  useEffect(() => {
+    const onFocus = () => router.refresh()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [router])
 
   // Modal states
   const [creandoGrupo, setCreandoGrupo] = useState(false)

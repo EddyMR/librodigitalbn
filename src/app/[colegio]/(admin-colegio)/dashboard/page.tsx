@@ -50,6 +50,11 @@ export default async function AdminColegioDashboard({ params }: Props) {
           <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">Administrador</p>
           <h1 className="text-xl font-bold text-slate-900">{nombreCompleto(perfil)}</h1>
           <p className="text-sm text-slate-500">{perfil.colegio?.nombre}</p>
+          {perfil.colegio?.codigo && (
+            <p className="text-xs text-slate-400 mt-0.5">
+              Código: <span className="font-mono font-bold text-brand-600 tracking-widest">{perfil.colegio.codigo}</span>
+            </p>
+          )}
         </div>
       </div>
 

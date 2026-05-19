@@ -222,7 +222,7 @@ export default function SubidaMasivaClient({ grupos, colegioId, codigoColegio, c
           <button onClick={() => { setResultados(null); setTexto('') }} className="btn-secondary flex-1">
             Subir más
           </button>
-          <button onClick={() => router.push(`/${codigoColegio}/usuarios`)} className="btn-primary flex-1">
+          <button onClick={() => { router.refresh(); router.push(`/${codigoColegio}/usuarios`) }} className="btn-primary flex-1">
             Ver usuarios
           </button>
         </div>

@@ -31,6 +31,12 @@ export default function UsuariosClient({ usuarios, grupos, codigoColegio, rolAdm
   const [accesoAlumno, setAccesoAlumno] = useState<Perfil | null>(null)
   const router = useRouter()
 
+  useEffect(() => {
+    const onFocus = () => router.refresh()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [router])
+
   const filtered = useMemo(() => {
     if (!query) return listaUsuarios
     const q = query.toLowerCase()

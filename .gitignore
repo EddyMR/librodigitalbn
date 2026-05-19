@@ -34,3 +34,5 @@ next-env.d.ts
 # Archives
 *.tar.gz
 *.zip
+
+.vercel
