@@ -4,8 +4,9 @@ import { createAdminClient } from '@/lib/supabase'
 import { nombreCompleto, avatarUrl } from '@/lib/utils'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Users, BookOpen, BarChart2, Plus, ChevronRight } from 'lucide-react'
+import { Users, ChevronRight } from 'lucide-react'
 import type { Metadata } from 'next'
+import AutoRefresh from './AutoRefresh'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Panel del colegio' }
@@ -43,6 +44,7 @@ export default async function AdminColegioDashboard({ params }: Props) {
 
   return (
     <div className="space-y-5 px-4 pt-4 pb-24">
+      <AutoRefresh />
       {/* Header */}
       <div className="flex items-center gap-3">
         <Image src={avatarUrl(perfil.avatar_id)} alt="Avatar" width={52} height={52} className="rounded-2xl" />
