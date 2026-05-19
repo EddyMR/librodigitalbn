@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
-import { avatarUrl, AVATARES } from '@/types'
+import { AVATARES } from '@/types'
 import { Check } from 'lucide-react'
 import type { Perfil } from '@/types'
 
