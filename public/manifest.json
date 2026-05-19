@@ -1,0 +1,14 @@
+{
+  "name": "Libro Digital Buena Nueva",
+  "short_name": "Buena Nueva",
+  "description": "Plataforma digital de catequesis con libros interactivos",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4c6ef5",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/api/pwa-icon?size=192", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/api/pwa-icon?size=512", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

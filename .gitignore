@@ -1,0 +1,36 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# production build
+/.next
+/out
+
+# environment variables — NEVER commit these
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# PWA — generated on build, do not commit
+/public/sw.js
+/public/workbox-*.js
+/public/worker-*.js
+/public/fallback-*.js
+
+# misc
+.DS_Store
+*.pem
+/coverage
+/.vercel
+*.tsbuildinfo
+next-env.d.ts
+
+# Claude Code settings
+.claude/
+
+# Archives
+*.tar.gz
+*.zip

@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-brand: theme('colors.brand.600');
+    --color-brand-light: theme('colors.brand.50');
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  * {
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer utilities {
+  .pb-safe { padding-bottom: calc(1rem + var(--safe-bottom)); }
+  .pt-safe { padding-top: calc(1rem + var(--safe-top)); }
+
+  /* Hoja viewer: full-height mobile scroll */
+  .hoja-container {
+    height: calc(100dvh - 4rem);
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hoja-page {
+    scroll-snap-align: start;
+    min-height: calc(100dvh - 4rem);
+  }
+
+  /* Touch-friendly targets */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    @apply relative h-2 rounded-full bg-slate-200 overflow-hidden;
+  }
+  .progress-fill {
+    @apply h-full rounded-full bg-brand-500 transition-all duration-500 ease-out;
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply animate-pulse bg-slate-200 rounded-lg;
+  }
+}
+
+@layer components {
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-slate-100;
+  }
+  .card-hover {
+    @apply hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+           font-medium text-sm transition-all duration-150 active:scale-95
+           disabled:opacity-50 disabled:pointer-events-none touch-target;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-sm;
+  }
+  .btn-secondary {
+    @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-slate-600 hover:bg-slate-100;
+  }
+  .btn-danger {
+    @apply btn bg-red-50 text-red-700 hover:bg-red-100;
+  }
+  .btn-icon {
+    @apply btn p-2.5 rounded-xl;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full px-4 py-3 rounded-xl border border-slate-200 bg-white
+           text-slate-900 placeholder:text-slate-400
+           focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400
+           transition-shadow text-base;
+  }
+
+  /* Bottom nav */
+  .bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100
+           flex items-center justify-around px-2
+           pb-safe shadow-[0_-1px_12px_rgba(0,0,0,0.06)];
+    height: calc(3.5rem + var(--safe-bottom));
+  }
+  .bottom-nav-item {
+    @apply flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl
+           text-xs font-medium text-slate-400 transition-colors;
+  }
+  .bottom-nav-item.active {
+    @apply text-brand-600;
+  }
+
+  /* Status badges */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+  .badge-entregado { @apply badge bg-green-100 text-green-700; }
+  .badge-borrador { @apply badge bg-amber-100 text-amber-700; }
+  .badge-pendiente { @apply badge bg-slate-100 text-slate-500; }
+}
