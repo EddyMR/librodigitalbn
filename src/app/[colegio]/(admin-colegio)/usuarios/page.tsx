@@ -11,12 +11,13 @@ export const metadata: Metadata = { title: 'Usuarios' }
 
 interface Props {
   params: Promise<{ colegio: string }>
-  searchParams: Promise<{ rol?: string }>
+  searchParams: Promise<{ rol?: string; sin_grupo?: string }>
 }
 
 export default async function UsuariosPage({ params, searchParams }: Props) {
   const { colegio: codigo } = await params
-  const { rol: rolFiltro } = await searchParams
+  const { rol: rolFiltro, sin_grupo: sinGrupoParam } = await searchParams
+  const sinGrupo = sinGrupoParam === '1'
   const perfil = await getSession()
   if (!perfil || perfil.rol !== 'admin_colegio') redirect(`/${codigo}/login`)
 
@@ -39,17 +40,27 @@ export default async function UsuariosPage({ params, searchParams }: Props) {
   // Step 2: fetch usuarios + grupo_alumnos (flat, no nested join)
   const { data: usuariosRaw } = await admin
     .from('perfiles')
-    .select('*, grupos_catequista:grupos!grupos_catequista_id_fkey(id, nombre)')
+    .select('*')
     .eq('colegio_id', colegioId)
     .in('rol', rolFilter)
     .order('nombre')
 
   const { data: grupoAlumnosRaw } = grupoIds.length > 0
-    ? await admin.from('grupo_alumnos').select('alumno_id, grupo_id').in('grupo_id', grupoIds)
+    ? await admin.from('grupo_alumnos').select('alumno_id, grupo_id').in('grupo_id', grupoIds).eq('activo', true)
     : { data: [] }
 
-  // Build grupo lookup and enrich usuarios
+  // Build lookup maps
   const grupoNombreMap = new Map((grupos ?? []).map(g => [g.id, g.nombre]))
+
+  // grupos per catequista (no embed = no INNER JOIN)
+  const gruposByCatequista = new Map<string, { id: string; nombre: string }[]>()
+  for (const g of grupos ?? []) {
+    if (!g.catequista_id) continue
+    if (!gruposByCatequista.has(g.catequista_id)) gruposByCatequista.set(g.catequista_id, [])
+    gruposByCatequista.get(g.catequista_id)!.push({ id: g.id, nombre: g.nombre })
+  }
+
+  // grupos per alumno
   const alumnoGrupoMap = new Map<string, { grupo: { id: string; nombre: string } }[]>()
   for (const ga of grupoAlumnosRaw ?? []) {
     if (!alumnoGrupoMap.has(ga.alumno_id)) alumnoGrupoMap.set(ga.alumno_id, [])
@@ -60,10 +71,19 @@ export default async function UsuariosPage({ params, searchParams }: Props) {
     }
   }
 
-  const usuarios = (usuariosRaw ?? []).map(u => ({
+  const usuarios = (usuariosRaw ?? []).map((u: any) => ({
     ...u,
     grupo_alumnos: alumnoGrupoMap.get(u.id) ?? [],
+    grupos_catequista: gruposByCatequista.get(u.id) ?? [],
   }))
+
+  const sinGrupoCount = usuarios.filter(
+    u => u.rol === 'alumno' && (u.grupo_alumnos ?? []).length === 0
+  ).length
+
+  const usuariosFiltrados = sinGrupo
+    ? usuarios.filter(u => u.rol === 'alumno' && (u.grupo_alumnos ?? []).length === 0)
+    : usuarios
 
   return (
     <div className="min-h-dvh bg-slate-50 pb-24">
@@ -81,7 +101,7 @@ export default async function UsuariosPage({ params, searchParams }: Props) {
           </Link>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {[
             { label: 'Todos', value: '' },
             { label: 'Alumnos', value: 'alumno' },
@@ -92,7 +112,7 @@ export default async function UsuariosPage({ params, searchParams }: Props) {
               key={tab.value}
               href={`/${codigo}/usuarios${tab.value ? `?rol=${tab.value}` : ''}`}
               className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-                (rolFiltro ?? '') === tab.value
+                !sinGrupo && (rolFiltro ?? '') === tab.value
                   ? 'bg-brand-600 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
@@ -100,11 +120,26 @@ export default async function UsuariosPage({ params, searchParams }: Props) {
               {tab.label}
             </Link>
           ))}
+          <Link
+            href={`/${codigo}/usuarios?sin_grupo=1`}
+            className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              sinGrupo
+                ? 'bg-amber-500 text-white'
+                : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+            }`}
+          >
+            Sin grupo
+            {sinGrupoCount > 0 && (
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${sinGrupo ? 'bg-amber-400 text-white' : 'bg-amber-200 text-amber-800'}`}>
+                {sinGrupoCount}
+              </span>
+            )}
+          </Link>
         </div>
       </div>
 
       <UsuariosClient
-        usuarios={usuarios as any[]}
+        usuarios={usuariosFiltrados as any[]}
         grupos={(grupos ?? []) as any[]}
         codigoColegio={codigo}
         rolAdmin={perfil.rol}

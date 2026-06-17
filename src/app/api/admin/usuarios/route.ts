@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       await admin.from('grupo_alumnos').insert({ grupo_id: grupoId, alumno_id: perfil.id })
     }
 
-    return NextResponse.json({ ok: true, username, password })
+    return NextResponse.json({ ok: true, username, password, perfilId: perfil.id })
   }
 
   // Para catequista y admin_colegio: email requerido
@@ -86,19 +86,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authError?.message ?? 'Error al crear usuario' }, { status: 500 })
   }
 
-  const { error: perfilError } = await admin.from('perfiles').insert({
+  const { data: newPerfil, error: perfilError } = await admin.from('perfiles').insert({
     user_id: authUser.user.id,
     colegio_id: colegioId,
     nombre,
     apellido,
     email,
     rol: rolFinal,
-  })
+  }).select('id').single()
 
-  if (perfilError) {
+  if (perfilError || !newPerfil) {
     await admin.auth.admin.deleteUser(authUser.user.id)
-    return NextResponse.json({ error: perfilError.message }, { status: 500 })
+    return NextResponse.json({ error: perfilError?.message ?? 'Error al crear perfil' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, password })
+  return NextResponse.json({ ok: true, password, perfilId: newPerfil.id })
 }

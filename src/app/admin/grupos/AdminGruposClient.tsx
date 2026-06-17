@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Users, BookOpen, Plus, Trash2, Pencil, Search,
   X, Check, UserMinus, UserPlus,
@@ -10,6 +11,7 @@ import { Modal, Confirm, Toast } from '@/components/ui'
 import { nombreCompleto, avatarUrl, cn } from '@/lib/utils'
 import Image from 'next/image'
 
+interface Ciclo { id: string; nombre: string; activo: boolean }
 interface Catequista { id: string; nombre: string; apellido: string; avatar_id?: number }
 interface Libro { id: string; titulo: string; portada_url?: string }
 interface Alumno {
@@ -24,6 +26,7 @@ interface Grupo {
   id: string
   nombre: string
   activo: boolean
+  ciclo_id: string | null
   catequista: Catequista | null
   grupo_alumnos: { alumno_id: string }[]
 }
@@ -33,6 +36,7 @@ interface Props {
   catequistas: Catequista[]
   libros: Libro[]
   alumnos: Alumno[]
+  ciclos: Ciclo[]
   libroCountMap: Record<string, number>
   colegioId: string
 }
@@ -53,13 +57,32 @@ export default function AdminGruposClient({
   catequistas,
   libros,
   alumnos: initialAlumnos,
+  ciclos,
   libroCountMap: initialLibroCountMap,
   colegioId,
 }: Props) {
+  const router = useRouter()
   const [grupos, setGrupos] = useState(initialGrupos)
   const [alumnos, setAlumnos] = useState(initialAlumnos)
   const [libroCountMap, setLibroCountMap] = useState(initialLibroCountMap)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+
+  useEffect(() => { setGrupos(initialGrupos) }, [initialGrupos])
+  useEffect(() => { setAlumnos(initialAlumnos) }, [initialAlumnos])
+  useEffect(() => { setLibroCountMap(initialLibroCountMap) }, [initialLibroCountMap])
+
+  useEffect(() => {
+    const onFocus = () => router.refresh()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [router])
+
+  const [filtCiclo, setFiltCiclo] = useState<string>('todos')
+  const gruposFiltrados = filtCiclo === 'todos'
+    ? grupos
+    : filtCiclo === 'sin_ciclo'
+      ? grupos.filter(g => !g.ciclo_id)
+      : grupos.filter(g => g.ciclo_id === filtCiclo)
 
   const [creandoGrupo, setCreandoGrupo] = useState(false)
   const [editandoGrupo, setEditandoGrupo] = useState<Grupo | null>(null)
@@ -97,6 +120,24 @@ export default function AdminGruposClient({
     setLibroCountMap(prev => ({ ...prev, [asignandoLibros.grupo.id]: newIds.length }))
   }
 
+  async function handleAsignarTodosLibros() {
+    if (!asignandoLibros) return
+    setLoadingLibros(true)
+    const pendientes = libros.filter(l => !asignandoLibros.librosIds.includes(l.id))
+    for (const libro of pendientes) {
+      await fetch('/api/admin/libro-grupos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grupo_id: asignandoLibros.grupo.id, libro_id: libro.id, activo: true }),
+      })
+    }
+    const newIds = libros.map(l => l.id)
+    setAsignandoLibros(p => p ? { ...p, librosIds: newIds } : null)
+    setLibroCountMap(prev => ({ ...prev, [asignandoLibros.grupo.id]: newIds.length }))
+    setLoadingLibros(false)
+    showToast(`${pendientes.length} libro${pendientes.length !== 1 ? 's' : ''} asignado${pendientes.length !== 1 ? 's' : ''}`)
+  }
+
   function handleGrupoCreado(nuevoGrupo: Grupo) {
     setGrupos(prev => [...prev, { ...nuevoGrupo, grupo_alumnos: [] }])
     setCreandoGrupo(false)
@@ -107,7 +148,7 @@ export default function AdminGruposClient({
 
   function handleGrupoEditado(grupoActualizado: Grupo) {
     setGrupos(prev => prev.map(g => g.id === grupoActualizado.id
-      ? { ...g, nombre: grupoActualizado.nombre, catequista: grupoActualizado.catequista }
+      ? { ...g, nombre: grupoActualizado.nombre, catequista: grupoActualizado.catequista, ciclo_id: grupoActualizado.ciclo_id }
       : g
     ))
     setEditandoGrupo(null)
@@ -217,6 +258,7 @@ export default function AdminGruposClient({
       {creandoGrupo && (
         <CrearGrupoModal
           catequistas={catequistas}
+          ciclos={ciclos}
           colegioId={colegioId}
           onClose={() => setCreandoGrupo(false)}
           onCreado={handleGrupoCreado}
@@ -227,6 +269,7 @@ export default function AdminGruposClient({
         <EditarGrupoModal
           grupo={editandoGrupo}
           catequistas={catequistas}
+          ciclos={ciclos}
           onClose={() => setEditandoGrupo(null)}
           onEditado={handleGrupoEditado}
         />
@@ -252,6 +295,7 @@ export default function AdminGruposClient({
           librosIds={asignandoLibros.librosIds}
           loading={loadingLibros}
           onToggle={handleToggleLibro}
+          onAsignarTodos={handleAsignarTodosLibros}
           onClose={() => setAsignandoLibros(null)}
         />
       )}
@@ -265,6 +309,30 @@ export default function AdminGruposClient({
           Crear nuevo grupo
         </button>
 
+        {/* Filtro por ciclo */}
+        {ciclos.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {[
+              { value: 'todos', label: 'Todos' },
+              ...ciclos.map(c => ({ value: c.id, label: c.nombre + (c.activo ? ' ★' : '') })),
+              { value: 'sin_ciclo', label: 'Sin ciclo' },
+            ].map(tab => (
+              <button
+                key={tab.value}
+                onClick={() => setFiltCiclo(tab.value)}
+                className={cn(
+                  'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors',
+                  filtCiclo === tab.value
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {grupos.length === 0 && (
           <div className="card p-12 text-center space-y-3">
             <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto">
@@ -277,10 +345,11 @@ export default function AdminGruposClient({
           </div>
         )}
 
-        {grupos.map((grupo, idx) => {
+        {gruposFiltrados.map((grupo, idx) => {
           const palette = paletteFor(idx)
           const alumnoCount = grupo.grupo_alumnos?.length ?? 0
           const libroCount = libroCountMap[grupo.id] ?? 0
+          const cicloNombre = grupo.ciclo_id ? (ciclos.find(c => c.id === grupo.ciclo_id)?.nombre ?? null) : null
 
           return (
             <div key={grupo.id} className={cn('card overflow-hidden', !grupo.activo && 'opacity-60')}>
@@ -291,7 +360,14 @@ export default function AdminGruposClient({
                     <Users className={`w-5 h-5 ${palette.text}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-slate-900 text-base leading-tight">{grupo.nombre}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-slate-900 text-base leading-tight">{grupo.nombre}</p>
+                      {cicloNombre && (
+                        <span className="px-2 py-0.5 bg-brand-100 text-brand-700 text-xs font-semibold rounded-full">
+                          {cicloNombre}
+                        </span>
+                      )}
+                    </div>
                     {grupo.catequista ? (
                       <p className="text-sm text-slate-500 mt-0.5">{nombreCompleto(grupo.catequista)}</p>
                     ) : (
@@ -360,15 +436,17 @@ export default function AdminGruposClient({
 }
 
 function CrearGrupoModal({
-  catequistas, colegioId, onClose, onCreado,
+  catequistas, ciclos, colegioId, onClose, onCreado,
 }: {
   catequistas: Catequista[]
+  ciclos: Ciclo[]
   colegioId: string
   onClose: () => void
   onCreado: (grupo: Grupo) => void
 }) {
   const [nombre, setNombre] = useState('')
   const [catequistaId, setCatequistaId] = useState('')
+  const [cicloId, setCicloId] = useState(() => ciclos.find(c => c.activo)?.id ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -378,7 +456,12 @@ function CrearGrupoModal({
     const res = await fetch('/api/admin/grupos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ colegio_id: colegioId, nombre: nombre.trim(), catequista_id: catequistaId || null }),
+      body: JSON.stringify({
+        colegio_id: colegioId,
+        nombre: nombre.trim(),
+        catequista_id: catequistaId || null,
+        ciclo_id: cicloId || null,
+      }),
     })
     const data = await res.json()
     setLoading(false)
@@ -405,6 +488,17 @@ function CrearGrupoModal({
             autoFocus
           />
         </div>
+        {ciclos.length > 0 && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">Ciclo catequético</label>
+            <select className="input" value={cicloId} onChange={e => setCicloId(e.target.value)}>
+              <option value="">Sin ciclo</option>
+              {ciclos.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}{c.activo ? ' (activo)' : ''}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="space-y-1.5">
           <label className="text-sm font-semibold text-slate-700">Catequista responsable</label>
           {catequistas.length === 0 ? (
@@ -430,15 +524,17 @@ function CrearGrupoModal({
 }
 
 function EditarGrupoModal({
-  grupo, catequistas, onClose, onEditado,
+  grupo, catequistas, ciclos, onClose, onEditado,
 }: {
   grupo: Grupo
   catequistas: Catequista[]
+  ciclos: Ciclo[]
   onClose: () => void
   onEditado: (g: Grupo) => void
 }) {
   const [nombre, setNombre] = useState(grupo.nombre)
   const [catequistaId, setCatequistaId] = useState(grupo.catequista?.id ?? '')
+  const [cicloId, setCicloId] = useState(grupo.ciclo_id ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -448,7 +544,11 @@ function EditarGrupoModal({
     const res = await fetch(`/api/admin/grupos/${grupo.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre: nombre.trim(), catequista_id: catequistaId || null }),
+      body: JSON.stringify({
+        nombre: nombre.trim(),
+        catequista_id: catequistaId || null,
+        ciclo_id: cicloId || null,
+      }),
     })
     const data = await res.json()
     setLoading(false)
@@ -474,6 +574,17 @@ function EditarGrupoModal({
             autoFocus
           />
         </div>
+        {ciclos.length > 0 && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">Ciclo catequético</label>
+            <select className="input" value={cicloId} onChange={e => setCicloId(e.target.value)}>
+              <option value="">Sin ciclo</option>
+              {ciclos.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}{c.activo ? ' (activo)' : ''}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="space-y-1.5">
           <label className="text-sm font-semibold text-slate-700">Catequista responsable</label>
           <select className="input" value={catequistaId} onChange={e => setCatequistaId(e.target.value)}>
@@ -660,16 +771,18 @@ function GestionarAlumnosModal({
 }
 
 function AsignarLibrosModal({
-  grupo, libros, librosIds, loading, onToggle, onClose,
+  grupo, libros, librosIds, loading, onToggle, onAsignarTodos, onClose,
 }: {
   grupo: Grupo
   libros: Libro[]
   librosIds: string[]
   loading: boolean
   onToggle: (libroId: string) => void
+  onAsignarTodos: () => void
   onClose: () => void
 }) {
   const asignados = librosIds.length
+  const todoAsignado = libros.length > 0 && asignados === libros.length
   return (
     <Modal open onClose={onClose} title={`Libros — ${grupo.nombre}`}>
       <div className="space-y-3">
@@ -685,27 +798,37 @@ function AsignarLibrosModal({
             <p className="text-sm text-slate-400">No hay libros disponibles.</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {libros.map(libro => {
-              const assigned = librosIds.includes(libro.id)
-              return (
-                <button
-                  key={libro.id}
-                  onClick={() => onToggle(libro.id)}
-                  className={cn(
-                    'w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left',
-                    assigned ? 'border-brand-400 bg-brand-50' : 'border-slate-200 bg-white hover:border-brand-200 hover:bg-slate-50'
-                  )}
-                >
-                  <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0', assigned ? 'bg-brand-600' : 'bg-slate-100')}>
-                    {assigned ? <Check className="w-4 h-4 text-white" /> : <BookOpen className="w-4 h-4 text-slate-400" />}
-                  </div>
-                  <p className={cn('font-semibold text-sm flex-1', assigned ? 'text-brand-900' : 'text-slate-700')}>{libro.titulo}</p>
-                  {assigned && <span className="text-xs text-brand-600 font-semibold">Asignado</span>}
-                </button>
-              )
-            })}
-          </div>
+          <>
+            {!todoAsignado && (
+              <button
+                onClick={onAsignarTodos}
+                className="w-full text-sm py-2 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors font-medium"
+              >
+                Asignar todos los libros
+              </button>
+            )}
+            <div className="space-y-2">
+              {libros.map(libro => {
+                const assigned = librosIds.includes(libro.id)
+                return (
+                  <button
+                    key={libro.id}
+                    onClick={() => onToggle(libro.id)}
+                    className={cn(
+                      'w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left',
+                      assigned ? 'border-brand-400 bg-brand-50' : 'border-slate-200 bg-white hover:border-brand-200 hover:bg-slate-50'
+                    )}
+                  >
+                    <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0', assigned ? 'bg-brand-600' : 'bg-slate-100')}>
+                      {assigned ? <Check className="w-4 h-4 text-white" /> : <BookOpen className="w-4 h-4 text-slate-400" />}
+                    </div>
+                    <p className={cn('font-semibold text-sm flex-1', assigned ? 'text-brand-900' : 'text-slate-700')}>{libro.titulo}</p>
+                    {assigned && <span className="text-xs text-brand-600 font-semibold">Asignado</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </>
         )}
         <button onClick={onClose} className="btn-primary w-full mt-2">Listo</button>
       </div>

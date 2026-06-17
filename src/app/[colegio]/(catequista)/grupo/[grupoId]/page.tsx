@@ -30,11 +30,12 @@ export default async function GrupoPage({ params }: Props) {
 
   if (!grupo) redirect(`/${codigo}/grupo`)
 
-  // Get students
+  // Get current active students in this group
   const { data: gaRows } = await admin
     .from('grupo_alumnos')
     .select('alumno_id')
     .eq('grupo_id', grupoId)
+    .eq('activo', true)
 
   const alumnoIds = (gaRows ?? []).map(r => r.alumno_id)
 
@@ -62,9 +63,26 @@ export default async function GrupoPage({ params }: Props) {
       ? admin.from('visitas_hojas').select('alumno_id, ultima_visita').in('alumno_id', alumnoIds)
       : Promise.resolve({ data: [] as any[] }),
     alumnoIds.length > 0
-      ? admin.from('entregas').select('alumno_id, hoja_id, estado, fecha_entrega').in('alumno_id', alumnoIds)
+      ? admin.from('entregas').select('id, alumno_id, hoja_id, estado, fecha_entrega').in('alumno_id', alumnoIds)
       : Promise.resolve({ data: [] as any[] }),
   ])
+
+  // Fetch comments for 'entregado' submissions to know which need feedback
+  const entregaIdsEntregadas = (entregasRaw.data ?? [])
+    .filter((e: any) => e.estado === 'entregado' && e.id)
+    .map((e: any) => e.id)
+  const { data: comentariosData } = entregaIdsEntregadas.length > 0
+    ? await admin.from('comentarios').select('entrega_id').in('entrega_id', entregaIdsEntregadas)
+    : { data: [] as any[] }
+  const comentadosSet = new Set((comentariosData ?? []).map((c: any) => c.entrega_id))
+
+  // Per-alumno pending feedback count
+  const pendienteCountMap: Record<string, number> = {}
+  for (const e of entregasRaw.data ?? []) {
+    if (e.estado === 'entregado' && e.id && !comentadosSet.has(e.id)) {
+      pendienteCountMap[e.alumno_id] = (pendienteCountMap[e.alumno_id] ?? 0) + 1
+    }
+  }
 
   const bloqueIds = (bloquesBase.data ?? []).map((b: any) => b.id)
   const { data: hojasBase } = bloqueIds.length > 0
@@ -88,16 +106,23 @@ export default async function GrupoPage({ params }: Props) {
     else if (e.estado === 'borrador') entregasCountMap[e.alumno_id].borrador++
   }
 
-  const alumnosConStats = alumnos.map((a: any) => ({
-    id: a.id,
-    nombre: a.nombre,
-    apellido: a.apellido,
-    avatar_id: a.avatar_id,
-    entregado: entregasCountMap[a.id]?.entregado ?? 0,
-    borrador: entregasCountMap[a.id]?.borrador ?? 0,
-    visitas: visitasCountMap[a.id] ?? 0,
-    ultimaVisita: ultimaVisitaMap[a.id],
-  }))
+  const alumnosConStats = alumnos.map((a: any) => {
+    const entregado = entregasCountMap[a.id]?.entregado ?? 0
+    const borrador = entregasCountMap[a.id]?.borrador ?? 0
+    const visitas = visitasCountMap[a.id] ?? 0
+    return {
+      id: a.id,
+      nombre: a.nombre,
+      apellido: a.apellido,
+      avatar_id: a.avatar_id,
+      entregado,
+      borrador,
+      visitas,
+      ultimaVisita: ultimaVisitaMap[a.id],
+      pendientesFeedback: pendienteCountMap[a.id] ?? 0,
+      sinActividad: visitas === 0 && entregado === 0 && borrador === 0,
+    }
+  })
 
   // Build "por libro" structure
   // entregasMap: `alumnoId:hojaId` → { estado, fecha_entrega }

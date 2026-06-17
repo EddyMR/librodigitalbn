@@ -9,6 +9,7 @@ import { Building2 } from 'lucide-react'
 import QRCode from 'qrcode'
 
 interface Colegio { id: string; nombre: string }
+interface Libro { id: string; titulo: string }
 interface Usuario {
   id: string
   nombre: string
@@ -20,12 +21,14 @@ interface Usuario {
   created_at: string
   colegio_id?: string
   colegio?: { nombre: string; codigo?: string }
+  grupo_alumnos?: { grupo_id: string; grupo: { id: string; nombre: string } | null }[]
 }
 
 interface Props {
   usuarios: Usuario[]
   colegios: Colegio[]
   rolFiltro?: string
+  libros: Libro[]
 }
 
 const ROLES = [
@@ -33,11 +36,14 @@ const ROLES = [
   { value: 'admin_colegio', label: 'Administradores' },
   { value: 'catequista', label: 'Catequistas' },
   { value: 'alumno', label: 'Alumnos' },
+  { value: 'sin_grupo', label: 'Sin grupo' },
 ]
 
-export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFiltro: rolInit }: Props) {
+export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFiltro: rolInit, libros }: Props) {
   const [usuarios, setUsuarios] = useState(initial)
   const [rolFiltro, setRolFiltro] = useState(rolInit ?? '')
+
+  useEffect(() => { setUsuarios(initial) }, [initial])
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [editando, setEditando] = useState<Usuario | null>(null)
@@ -47,10 +53,19 @@ export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFi
   const [accesoAlumno, setAccesoAlumno] = useState<Usuario | null>(null)
   const router = useRouter()
 
+  const sinGrupoCount = useMemo(
+    () => usuarios.filter(u => u.rol === 'alumno' && !u.grupo_alumnos?.[0]?.grupo).length,
+    [usuarios]
+  )
+
   // ── Filtrado ─────────────────────────────────────────────────
   const filtrados = useMemo(() => {
     let lista = usuarios
-    if (rolFiltro) lista = lista.filter(u => u.rol === rolFiltro)
+    if (rolFiltro === 'sin_grupo') {
+      lista = lista.filter(u => u.rol === 'alumno' && !u.grupo_alumnos?.[0]?.grupo)
+    } else if (rolFiltro) {
+      lista = lista.filter(u => u.rol === rolFiltro)
+    }
     if (query) {
       const q = query.toLowerCase()
       lista = lista.filter(u =>
@@ -145,6 +160,7 @@ export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFi
         <EditModal
           usuario={editando}
           colegios={colegios}
+          libros={libros}
           onClose={() => setEditando(null)}
           onSaved={(updated) => {
             setUsuarios(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated } : u))
@@ -167,9 +183,10 @@ export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFi
         <CrearModal
           colegios={colegios}
           onClose={() => setCreando(false)}
-          onCreated={(nuevo) => {
-            setUsuarios(prev => [nuevo, ...prev])
+          onCreated={(newUser) => {
             setCreando(false)
+            setUsuarios(prev => [...prev, newUser].sort((a, b) => a.nombre.localeCompare(b.nombre)))
+            router.refresh()
             setToast({ msg: 'Usuario creado correctamente', type: 'success' })
           }}
         />
@@ -183,13 +200,22 @@ export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFi
             <button
               key={r.value}
               onClick={() => setRolFiltro(r.value)}
-              className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-                rolFiltro === r.value
-                  ? 'bg-slate-800 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                r.value === 'sin_grupo'
+                  ? rolFiltro === 'sin_grupo'
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                  : rolFiltro === r.value
+                    ? 'bg-slate-800 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {r.label}
+              {r.value === 'sin_grupo' && sinGrupoCount > 0 && (
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${rolFiltro === 'sin_grupo' ? 'bg-amber-400 text-white' : 'bg-amber-200 text-amber-800'}`}>
+                  {sinGrupoCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -229,6 +255,11 @@ export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFi
                     <Building2 className="w-3 h-3 text-slate-400 flex-shrink-0" />
                     <span className="text-xs text-slate-500 truncate">{u.colegio?.nombre ?? 'Sin colegio'}</span>
                   </div>
+                  {u.rol === 'alumno' && (
+                    u.grupo_alumnos?.[0]?.grupo
+                      ? <p className="text-xs text-brand-600 font-medium truncate">Grupo: {u.grupo_alumnos[0].grupo.nombre}</p>
+                      : <p className="text-xs text-amber-600 font-medium">Sin grupo</p>
+                  )}
                   {u.email && <p className="text-xs text-slate-400 truncate">{u.email}</p>}
                   {u.username && <p className="text-xs text-slate-400 font-mono">@{u.username}</p>}
                 </div>
@@ -386,14 +417,18 @@ function AccesoModal({ usuario, onClose }: { usuario: Usuario; onClose: () => vo
 function EditModal({
   usuario,
   colegios,
+  libros,
   onClose,
   onSaved,
 }: {
   usuario: Usuario
   colegios: Colegio[]
+  libros: Libro[]
   onClose: () => void
   onSaved: (u: Partial<Usuario> & { id: string }) => void
 }) {
+  const grupoActualId = usuario.grupo_alumnos?.[0]?.grupo_id ?? ''
+
   const [form, setForm] = useState({
     nombre: usuario.nombre,
     apellido: usuario.apellido,
@@ -409,6 +444,11 @@ function EditModal({
   const [gruposAsignados, setGruposAsignados] = useState<string[]>([])
   const [savingGrupo, setSavingGrupo] = useState<string | null>(null)
 
+  // Group assignment state for alumnos
+  const [gruposDelColegio, setGruposDelColegio] = useState<{ id: string; nombre: string }[]>([])
+  const [grupoSeleccionado, setGrupoSeleccionado] = useState(grupoActualId)
+  const [librosDelGrupo, setLibrosDelGrupo] = useState<string[]>([])
+
   useEffect(() => {
     if (usuario.rol !== 'catequista' || !usuario.colegio_id) return
     fetch(`/api/admin/grupos?colegio_id=${usuario.colegio_id}`)
@@ -419,6 +459,20 @@ function EditModal({
         setGruposAsignados(lista.filter((g: any) => g.catequista?.id === usuario.id).map((g: any) => g.id))
       })
   }, [usuario.id, usuario.rol, usuario.colegio_id])
+
+  useEffect(() => {
+    if (usuario.rol !== 'alumno' || !usuario.colegio_id) return
+    fetch(`/api/admin/colegios/${usuario.colegio_id}/grupos`)
+      .then(r => r.json())
+      .then(data => setGruposDelColegio(data.grupos ?? []))
+  }, [usuario.id, usuario.rol, usuario.colegio_id])
+
+  useEffect(() => {
+    if (!grupoSeleccionado) { setLibrosDelGrupo([]); return }
+    fetch(`/api/admin/libro-grupos?grupo_id=${grupoSeleccionado}`)
+      .then(r => r.json())
+      .then(data => setLibrosDelGrupo(data.libros ?? []))
+  }, [grupoSeleccionado])
 
   async function handleToggleGrupo(grupoId: string, asignar: boolean) {
     setSavingGrupo(grupoId)
@@ -450,9 +504,34 @@ function EditModal({
       body: JSON.stringify(body),
     })
     const data = await res.json()
+    if (data.error) { setSaving(false); setError(data.error); return }
+
+    // Handle group change for alumnos
+    if (usuario.rol === 'alumno' && grupoSeleccionado !== grupoActualId) {
+      if (grupoSeleccionado) {
+        await fetch(`/api/admin/grupos/${grupoSeleccionado}/alumnos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alumnoId: usuario.id }),
+        })
+      } else if (grupoActualId) {
+        await fetch(`/api/admin/grupos/${grupoActualId}/alumnos`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alumnoId: usuario.id }),
+        })
+      }
+    }
+
     setSaving(false)
-    if (data.error) { setError(data.error); return }
-    onSaved({ id: usuario.id, ...body } as any)
+    const updatedUser: any = { id: usuario.id, ...body }
+    if (usuario.rol === 'alumno' && grupoSeleccionado !== grupoActualId) {
+      const newGrupo = gruposDelColegio.find(g => g.id === grupoSeleccionado)
+      updatedUser.grupo_alumnos = grupoSeleccionado
+        ? [{ grupo_id: grupoSeleccionado, grupo: newGrupo ? { id: newGrupo.id, nombre: newGrupo.nombre } : null }]
+        : []
+    }
+    onSaved(updatedUser)
   }
 
   return (
@@ -485,6 +564,41 @@ function EditModal({
             {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
         </div>
+
+        {/* Group assignment section for alumnos */}
+        {usuario.rol === 'alumno' && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Grupo</label>
+            {gruposDelColegio.length === 0 ? (
+              <p className="text-sm text-slate-400 px-3 py-2 bg-slate-50 rounded-xl">Sin grupos disponibles en este colegio</p>
+            ) : (
+              <select
+                className="input"
+                value={grupoSeleccionado}
+                onChange={e => setGrupoSeleccionado(e.target.value)}
+              >
+                <option value="">Sin grupo</option>
+                {gruposDelColegio.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+              </select>
+            )}
+            {librosDelGrupo.length > 0 && (
+              <div className="px-3 py-2 bg-purple-50 border border-purple-100 rounded-xl">
+                <p className="text-xs text-purple-600 font-medium mb-1">Libros de este grupo:</p>
+                <div className="space-y-0.5">
+                  {librosDelGrupo.map(libroId => {
+                    const libro = libros.find(l => l.id === libroId)
+                    return libro ? (
+                      <p key={libroId} className="text-xs text-slate-700">• {libro.titulo}</p>
+                    ) : null
+                  })}
+                </div>
+              </div>
+            )}
+            {grupoSeleccionado && librosDelGrupo.length === 0 && (
+              <p className="text-xs text-amber-600 px-3 py-1.5 bg-amber-50 rounded-xl">Este grupo no tiene libros asignados</p>
+            )}
+          </div>
+        )}
 
         {/* Group assignment section for catequistas */}
         {usuario.rol === 'catequista' && grupos.length > 0 && (
@@ -552,7 +666,7 @@ function CrearModal({
 }: {
   colegios: Colegio[]
   onClose: () => void
-  onCreated: (u: Usuario) => void
+  onCreated: (newUser: Usuario) => void
 }) {
   const [rol, setRol] = useState<'admin_colegio' | 'catequista' | 'alumno'>('admin_colegio')
   const [form, setForm] = useState({ nombre: '', apellido: '', email: '', colegioId: '', grupoId: '' })
@@ -560,7 +674,7 @@ function CrearModal({
   const [loadingGrupos, setLoadingGrupos] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [result, setResult] = useState<{ username?: string; password: string; email?: string } | null>(null)
+  const [result, setResult] = useState<{ username?: string; password: string; email?: string; perfilId?: string } | null>(null)
   const [copied, setCopied] = useState(false)
 
   async function loadGrupos(colegioId: string) {
@@ -591,7 +705,7 @@ function CrearModal({
     const data = await res.json()
     setSaving(false)
     if (data.error) { setError(data.error); return }
-    setResult({ username: data.username, password: data.password, email: form.email || undefined })
+    setResult({ username: data.username, password: data.password, email: form.email || undefined, perfilId: data.perfilId })
   }
 
   function handleCopy(text: string) {
@@ -625,7 +739,27 @@ function CrearModal({
               </button>
             </div>
           </div>
-          <button onClick={onClose} className="btn-primary w-full">Listo</button>
+          <button
+            onClick={() => {
+              const colegio = colegios.find(c => c.id === form.colegioId)
+              onCreated({
+                id: result.perfilId ?? '',
+                nombre: form.nombre,
+                apellido: form.apellido,
+                email: form.email || undefined,
+                username: result.username,
+                rol,
+                activo: true,
+                created_at: new Date().toISOString(),
+                colegio_id: form.colegioId,
+                colegio: colegio ? { nombre: colegio.nombre } : undefined,
+                grupo_alumnos: [],
+              })
+            }}
+            className="btn-primary w-full"
+          >
+            Listo
+          </button>
         </div>
       </Modal>
     )

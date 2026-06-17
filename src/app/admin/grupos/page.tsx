@@ -56,19 +56,17 @@ export default async function AdminGruposPage({ searchParams }: Props) {
   const colegio = (colegios ?? []).find(c => c.id === colegioId)
 
   const [
-    { data: grupos },
+    { data: gruposRaw },
     { data: catequistas },
     { data: libros },
-    { data: alumnos },
+    { data: alumnosRaw },
     { data: libroGruposData },
+    { data: grupoAlumnosData },
+    { data: ciclos },
   ] = await Promise.all([
     admin
       .from('grupos')
-      .select(`
-        id, nombre, activo, created_at,
-        catequista:perfiles!grupos_catequista_id_fkey(id, nombre, apellido, avatar_id),
-        grupo_alumnos(alumno_id)
-      `)
+      .select('id, nombre, activo, ciclo_id, created_at, catequista_id')
       .eq('colegio_id', colegioId)
       .order('nombre'),
 
@@ -88,7 +86,7 @@ export default async function AdminGruposPage({ searchParams }: Props) {
 
     admin
       .from('perfiles')
-      .select('id, nombre, apellido, avatar_id, activo, grupo_alumnos(grupo_id, grupo:grupos(id, nombre))')
+      .select('id, nombre, apellido, avatar_id, activo')
       .eq('colegio_id', colegioId)
       .eq('rol', 'alumno')
       .order('nombre'),
@@ -97,10 +95,54 @@ export default async function AdminGruposPage({ searchParams }: Props) {
       .from('libro_grupos')
       .select('grupo_id, libro_id')
       .eq('activo', true),
+
+    admin
+      .from('grupo_alumnos')
+      .select('alumno_id, grupo_id')
+      .eq('activo', true),
+
+    admin
+      .from('ciclos')
+      .select('id, nombre, activo')
+      .order('orden', { ascending: false }),
   ])
 
+  // Build lookup maps (avoids PostgREST INNER JOIN from embeds)
+  const catequistaMap = new Map((catequistas ?? []).map((c: any) => [c.id, c]))
+  const grupoIds = (gruposRaw ?? []).map((g: any) => g.id)
+  const grupoIdSet = new Set(grupoIds)
+
+  // alumno_ids per grupo
+  const alumnosByGrupo: Record<string, { alumno_id: string }[]> = {}
+  for (const ga of (grupoAlumnosData ?? []) as any[]) {
+    if (!alumnosByGrupo[ga.grupo_id]) alumnosByGrupo[ga.grupo_id] = []
+    alumnosByGrupo[ga.grupo_id].push({ alumno_id: ga.alumno_id })
+  }
+
+  // grupo info per alumno
+  const grupoNombreMap = new Map((gruposRaw ?? []).map((g: any) => [g.id, g.nombre]))
+  const gruposByAlumno: Record<string, { grupo_id: string; grupo: { id: string; nombre: string } | null }[]> = {}
+  for (const ga of (grupoAlumnosData ?? []) as any[]) {
+    if (!gruposByAlumno[ga.alumno_id]) gruposByAlumno[ga.alumno_id] = []
+    gruposByAlumno[ga.alumno_id].push({
+      grupo_id: ga.grupo_id,
+      grupo: grupoNombreMap.has(ga.grupo_id) ? { id: ga.grupo_id, nombre: grupoNombreMap.get(ga.grupo_id)! } : null,
+    })
+  }
+
+  const grupos = (gruposRaw ?? []).map((g: any) => ({
+    ...g,
+    catequista: g.catequista_id ? (catequistaMap.get(g.catequista_id) ?? null) : null,
+    grupo_alumnos: alumnosByGrupo[g.id] ?? [],
+  }))
+
+  const alumnos = (alumnosRaw ?? []).map((a: any) => ({
+    ...a,
+    grupo_alumnos: gruposByAlumno[a.id] ?? [],
+  }))
+
   const libroCountMap: Record<string, number> = {}
-  for (const lg of libroGruposData ?? []) {
+  for (const lg of (libroGruposData ?? []).filter((lg: any) => grupoIdSet.has(lg.grupo_id))) {
     if (!libroCountMap[lg.grupo_id]) libroCountMap[lg.grupo_id] = 0
     libroCountMap[lg.grupo_id]++
   }
@@ -123,6 +165,7 @@ export default async function AdminGruposPage({ searchParams }: Props) {
           catequistas={(catequistas ?? []) as any[]}
           libros={(libros ?? []) as any[]}
           alumnos={(alumnos ?? []) as any[]}
+          ciclos={(ciclos ?? []) as any[]}
           libroCountMap={libroCountMap}
           colegioId={colegioId}
         />

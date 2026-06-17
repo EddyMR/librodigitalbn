@@ -23,6 +23,8 @@ interface Props {
 
 export default function UsuariosClient({ usuarios, grupos, codigoColegio, rolAdmin }: Props) {
   const [listaUsuarios, setListaUsuarios] = useState(usuarios)
+
+  useEffect(() => { setListaUsuarios(usuarios) }, [usuarios])
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [confirm, setConfirm] = useState<{ type: 'delete' | 'toggle'; usuario: Perfil } | null>(null)
@@ -195,11 +197,14 @@ export default function UsuariosClient({ usuarios, grupos, codigoColegio, rolAdm
                     ) : usuario.rol === 'catequista' ? (
                       <p className="text-xs text-amber-500 mt-0.5">Sin grupo asignado</p>
                     ) : null}
-                    <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <Badge variant={usuario.rol === 'alumno' ? 'default' : usuario.rol === 'catequista' ? 'warning' : 'purple'}>
                         {labelRol(usuario.rol)}
                       </Badge>
                       {!usuario.activo && <Badge variant="danger">Inactivo</Badge>}
+                      {usuario.rol === 'alumno' && !grupo && (
+                        <Badge variant="warning">Sin grupo</Badge>
+                      )}
                     </div>
                   </div>
                   {/* Actions */}

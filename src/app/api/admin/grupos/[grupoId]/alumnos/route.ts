@@ -15,7 +15,8 @@ export async function POST(
   const { alumnoId } = await request.json()
   const admin = createAdminClient()
 
-  await admin.from('grupo_alumnos').delete().eq('alumno_id', alumnoId)
+  // Solo quita del grupo activo actual (preserva historial de ciclos anteriores)
+  await admin.from('grupo_alumnos').delete().eq('alumno_id', alumnoId).eq('activo', true)
 
   const { error } = await admin
     .from('grupo_alumnos')

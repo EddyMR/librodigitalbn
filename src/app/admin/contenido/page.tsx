@@ -11,7 +11,7 @@ export default async function ContenidoPage() {
 
   const { data: libros, error } = await admin
     .from('libros')
-    .select('id, titulo, descripcion, orden, activo')
+    .select('id, titulo, descripcion, activo')
     .order('orden')
 
   if (error) console.error('[ADMIN] Error fetching libros:', error)

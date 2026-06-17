@@ -5,7 +5,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import {
   Search, X, Eye, CheckCircle2, Clock, ChevronRight,
-  BookOpen, Users, ChevronDown, ChevronUp,
+  BookOpen, Users, ChevronDown, ChevronUp, MessageSquareDot,
+  AlertCircle, LayoutDashboard,
 } from 'lucide-react'
 import { avatarUrl, nombreCompleto, formatRelativo, formatFechaHora } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,8 @@ interface Alumno {
   borrador: number
   visitas: number
   ultimaVisita?: string
+  pendientesFeedback: number
+  sinActividad: boolean
 }
 
 interface AlumnoBasico {
@@ -75,7 +78,7 @@ const tipoColor: Record<string, string> = {
 }
 
 export default function GrupoAlumnosClient({ alumnos, alumnosBasicos, libros, entregasMap, codigo }: Props) {
-  const [vista, setVista] = useState<'alumnos' | 'libros'>('alumnos')
+  const [vista, setVista] = useState<'resumen' | 'alumnos' | 'libros'>('resumen')
   const [busqueda, setBusqueda] = useState('')
 
   const filtrados = useMemo(() => {
@@ -87,10 +90,29 @@ export default function GrupoAlumnosClient({ alumnos, alumnosBasicos, libros, en
     )
   }, [busqueda, alumnos])
 
+  const totalPendientes = useMemo(
+    () => alumnos.filter(a => a.pendientesFeedback > 0).length,
+    [alumnos]
+  )
+
   return (
     <div className="px-4 pt-4 space-y-3">
       {/* View toggle */}
       <div className="flex rounded-xl bg-slate-100 p-1 gap-1">
+        <button
+          onClick={() => setVista('resumen')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all relative',
+            vista === 'resumen' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'
+          )}
+        >
+          <LayoutDashboard className="w-3.5 h-3.5" /> Resumen
+          {totalPendientes > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+              {totalPendientes > 9 ? '9+' : totalPendientes}
+            </span>
+          )}
+        </button>
         <button
           onClick={() => setVista('alumnos')}
           className={cn(
@@ -111,6 +133,10 @@ export default function GrupoAlumnosClient({ alumnos, alumnosBasicos, libros, en
         </button>
       </div>
 
+      {vista === 'resumen' && (
+        <VistaResumen alumnos={alumnos} codigo={codigo} />
+      )}
+
       {vista === 'alumnos' && (
         <VistaAlumnos alumnos={alumnos} filtrados={filtrados} busqueda={busqueda} setBusqueda={setBusqueda} codigo={codigo} />
       )}
@@ -119,6 +145,166 @@ export default function GrupoAlumnosClient({ alumnos, alumnosBasicos, libros, en
         <VistaLibros libros={libros} alumnos={alumnosBasicos} entregasMap={entregasMap} codigo={codigo} />
       )}
     </div>
+  )
+}
+
+// ── Vista resumen ───────────────────────────────────────────────
+function VistaResumen({ alumnos, codigo }: { alumnos: Alumno[]; codigo: string }) {
+  const pendientes = alumnos.filter(a => a.pendientesFeedback > 0)
+  const sinActividad = alumnos.filter(a => a.sinActividad)
+  const alDia = alumnos.filter(a => !a.pendientesFeedback && !a.sinActividad)
+
+  if (alumnos.length === 0) {
+    return (
+      <div className="card p-10 text-center">
+        <p className="text-slate-400">Este grupo no tiene alumnos aún</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4 pb-4">
+      {/* Stats strip */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="card p-3 text-center">
+          <p className="text-2xl font-bold text-slate-900">{alumnos.length}</p>
+          <p className="text-xs text-slate-400 mt-0.5">Alumnos</p>
+        </div>
+        <div className={cn('card p-3 text-center', pendientes.length > 0 ? 'bg-amber-50 border-amber-100' : '')}>
+          <p className={cn('text-2xl font-bold', pendientes.length > 0 ? 'text-amber-600' : 'text-slate-300')}>
+            {pendientes.length}
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">Por revisar</p>
+        </div>
+        <div className={cn('card p-3 text-center', sinActividad.length > 0 ? 'bg-red-50 border-red-100' : '')}>
+          <p className={cn('text-2xl font-bold', sinActividad.length > 0 ? 'text-red-500' : 'text-slate-300')}>
+            {sinActividad.length}
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">Sin actividad</p>
+        </div>
+      </div>
+
+      {/* Pending feedback */}
+      {pendientes.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center gap-2">
+            <MessageSquareDot className="w-4 h-4 text-amber-500" />
+            <h3 className="text-sm font-semibold text-amber-700">Esperando revisión ({pendientes.length})</h3>
+          </div>
+          {pendientes.map(a => (
+            <AlumnoResumenCard key={a.id} alumno={a} codigo={codigo} variant="warning" />
+          ))}
+        </section>
+      )}
+
+      {/* Inactive */}
+      {sinActividad.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400" />
+            <h3 className="text-sm font-semibold text-red-500">Sin actividad ({sinActividad.length})</h3>
+          </div>
+          {sinActividad.map(a => (
+            <AlumnoResumenCard key={a.id} alumno={a} codigo={codigo} variant="danger" />
+          ))}
+        </section>
+      )}
+
+      {/* On track */}
+      {alDia.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <h3 className="text-sm font-semibold text-green-700">Al día ({alDia.length})</h3>
+          </div>
+          {alDia.length <= 4 ? (
+            alDia.map(a => (
+              <AlumnoResumenCard key={a.id} alumno={a} codigo={codigo} variant="success" />
+            ))
+          ) : (
+            <div className="card p-3 flex flex-wrap gap-2">
+              {alDia.map(a => (
+                <a
+                  key={a.id}
+                  href={`/${codigo}/alumno/${a.id}`}
+                  title={`${a.nombre} ${a.apellido}`}
+                  className="block"
+                >
+                  <Image
+                    src={avatarUrl(a.avatar_id)}
+                    alt={nombreCompleto(a)}
+                    width={40}
+                    height={40}
+                    className="rounded-xl ring-2 ring-green-200 hover:ring-green-400 transition-all"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {pendientes.length === 0 && sinActividad.length === 0 && (
+        <div className="card p-5 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">¡Todo al día!</p>
+            <p className="text-xs text-slate-400">No hay entregas pendientes de revisión</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AlumnoResumenCard({
+  alumno, codigo, variant,
+}: {
+  alumno: Alumno
+  codigo: string
+  variant: 'warning' | 'danger' | 'success'
+}) {
+  const colors = {
+    warning: 'border-amber-100 hover:border-amber-200',
+    danger: 'border-red-100 hover:border-red-200',
+    success: 'border-green-100 hover:border-green-200',
+  }
+
+  return (
+    <a
+      href={`/${codigo}/alumno/${alumno.id}`}
+      className={cn('card p-3 flex items-center gap-3 transition-colors', colors[variant])}
+    >
+      <Image
+        src={avatarUrl(alumno.avatar_id)}
+        alt={nombreCompleto(alumno)}
+        width={40}
+        height={40}
+        className="rounded-xl flex-shrink-0"
+      />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-900 truncate">{nombreCompleto(alumno)}</p>
+        <div className="flex items-center gap-3 mt-0.5">
+          {variant === 'warning' && (
+            <span className="text-xs text-amber-600 font-medium">
+              {alumno.pendientesFeedback} entrega{alumno.pendientesFeedback !== 1 ? 's' : ''} sin revisar
+            </span>
+          )}
+          {variant === 'danger' && (
+            <span className="text-xs text-slate-400">Nunca ha accedido</span>
+          )}
+          {variant === 'success' && alumno.ultimaVisita && (
+            <span className="text-xs text-slate-400">Último acceso: {formatRelativo(alumno.ultimaVisita)}</span>
+          )}
+          {variant === 'success' && !alumno.ultimaVisita && (
+            <span className="text-xs text-slate-400">Sin visitas registradas</span>
+          )}
+        </div>
+      </div>
+      <ChevronRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
+    </a>
   )
 }
 

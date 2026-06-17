@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { Building2, Users, BookOpen, Plus, LayoutList, Upload } from 'lucide-react'
+import { Building2, Users, BookOpen, Plus, LayoutList, Upload, ShieldCheck, CalendarDays, ArrowRight } from 'lucide-react'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -15,10 +15,10 @@ export default async function AdminDashboard() {
     { count: totalCatequistas },
     { count: totalLibros },
   ] = await Promise.all([
-    admin.from('colegios').select('id', { count: 'exact', head: true }),
-    admin.from('perfiles').select('id', { count: 'exact', head: true }).eq('rol', 'alumno'),
-    admin.from('perfiles').select('id', { count: 'exact', head: true }).eq('rol', 'catequista'),
-    admin.from('libros').select('id', { count: 'exact', head: true }),
+    admin.from('colegios').select('*', { count: 'exact', head: true }),
+    admin.from('perfiles').select('*', { count: 'exact', head: true }).eq('rol', 'alumno'),
+    admin.from('perfiles').select('*', { count: 'exact', head: true }).eq('rol', 'catequista'),
+    admin.from('libros').select('*', { count: 'exact', head: true }),
   ])
 
   const stats = [
@@ -64,7 +64,10 @@ export default async function AdminDashboard() {
               { label: 'Gestionar usuarios', href: '/admin/usuarios', icon: Users },
               { label: 'Subir alumnos masivo', href: '/admin/usuarios/masivo', icon: Upload },
               { label: 'Gestionar grupos', href: '/admin/grupos', icon: LayoutList },
+              { label: 'Ciclos catequéticos', href: '/admin/ciclos', icon: CalendarDays },
+              { label: 'Promover alumnos', href: '/admin/promocion', icon: ArrowRight },
               { label: 'Gestionar libros y contenido', href: '/admin/contenido', icon: BookOpen },
+              { label: 'Contraseñas del panel', href: '/admin/seguridad', icon: ShieldCheck },
             ].map(action => (
               <Link
                 key={action.label}

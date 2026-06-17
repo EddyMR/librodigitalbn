@@ -31,12 +31,12 @@ export default async function HojaPage({ params }: Props) {
   if (!hoja) notFound()
 
   // Get all hojas in this bloque (for navigation)
-  const { data: todasHojas } = await admin
+  const { data: todasHojasRaw } = await admin
     .from('hojas')
     .select('id, titulo, tipo, orden')
     .eq('bloque_id', bloqueId)
     .eq('activo', true)
-    .order('orden')
+  const todasHojas = (todasHojasRaw ?? []).sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
 
   // Get bloque title for nav header
   const { data: bloque } = await admin

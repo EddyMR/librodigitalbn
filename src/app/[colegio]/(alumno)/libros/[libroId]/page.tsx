@@ -25,16 +25,25 @@ export default async function LibroPage({ params }: Props) {
 
   const supabase = await createServerSupabaseClient()
 
-  const { data: libro } = await supabase
+  const { data: libroRaw } = await supabase
     .from('libros')
     .select('*, bloques(id, titulo, descripcion, orden, hojas(id, tipo, orden))')
     .eq('id', libroId)
     .eq('activo', true)
-    .order('orden', { referencedTable: 'bloques' })
-    .order('orden', { referencedTable: 'bloques.hojas' })
     .single()
 
-  if (!libro) notFound()
+  if (!libroRaw) notFound()
+
+  // Sort nested bloques and hojas in JS (avoids PostgREST order+select conflict on 'orden')
+  const libro = {
+    ...libroRaw,
+    bloques: ((libroRaw as any).bloques ?? [])
+      .sort((a: any, b: any) => (a.orden ?? 0) - (b.orden ?? 0))
+      .map((b: any) => ({
+        ...b,
+        hojas: (b.hojas ?? []).sort((a: any, b: any) => (a.orden ?? 0) - (b.orden ?? 0)),
+      })),
+  }
 
   // Get visit data for this student (if alumno)
   let visitedIds = new Set<string>()

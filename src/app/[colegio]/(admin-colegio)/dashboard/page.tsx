@@ -29,18 +29,29 @@ export default async function AdminColegioDashboard({ params }: Props) {
     { count: totalAlumnos },
     { count: totalCatequistas },
     { count: totalGrupos },
-    { data: grupos },
+    { data: gruposRaw },
+    { data: catequistas },
   ] = await Promise.all([
-    admin.from('perfiles').select('id', { count: 'exact', head: true }).eq('colegio_id', colegioId).eq('rol', 'alumno'),
-    admin.from('perfiles').select('id', { count: 'exact', head: true }).eq('colegio_id', colegioId).eq('rol', 'catequista'),
-    admin.from('grupos').select('id', { count: 'exact', head: true }).eq('colegio_id', colegioId).eq('activo', true),
+    admin.from('perfiles').select('*', { count: 'exact', head: true }).eq('colegio_id', colegioId).eq('rol', 'alumno'),
+    admin.from('perfiles').select('*', { count: 'exact', head: true }).eq('colegio_id', colegioId).eq('rol', 'catequista'),
+    admin.from('grupos').select('*', { count: 'exact', head: true }).eq('colegio_id', colegioId).eq('activo', true),
     admin.from('grupos')
-      .select('id, nombre, catequista:perfiles(nombre, apellido)')
+      .select('id, nombre, catequista_id')
       .eq('colegio_id', colegioId)
       .eq('activo', true)
       .order('nombre')
       .limit(5),
+    admin.from('perfiles')
+      .select('id, nombre, apellido')
+      .eq('colegio_id', colegioId)
+      .eq('rol', 'catequista'),
   ])
+
+  const catequistaMap = new Map((catequistas ?? []).map((c: any) => [c.id, c]))
+  const grupos = (gruposRaw ?? []).map((g: any) => ({
+    ...g,
+    catequista: g.catequista_id ? (catequistaMap.get(g.catequista_id) ?? null) : null,
+  }))
 
   return (
     <div className="space-y-5 px-4 pt-4 pb-24">

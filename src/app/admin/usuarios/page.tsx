@@ -15,18 +15,46 @@ export default async function AdminUsuariosPage({ searchParams }: Props) {
   const { rol } = await searchParams
   const admin = createAdminClient()
 
-  const { data: usuarios } = await admin
-    .from('perfiles')
-    .select('*, colegio:colegios(nombre, codigo)')
-    .in('rol', ['admin_colegio', 'catequista', 'alumno'])
-    .order('rol')
-    .order('nombre')
+  const [
+    { data: usuarios },
+    { data: colegios },
+    { data: libros },
+    { data: grupoAlumnosData },
+  ] = await Promise.all([
+    admin
+      .from('perfiles')
+      .select('*')
+      .in('rol', ['admin_colegio', 'catequista', 'alumno'])
+      .order('nombre'),
+    admin.from('colegios').select('id, nombre, codigo, activo').order('nombre'),
+    admin.from('libros').select('id, titulo').eq('activo', true),
+    admin.from('grupo_alumnos').select('alumno_id, grupo_id').eq('activo', true),
+  ])
 
-  const { data: colegios } = await admin
-    .from('colegios')
-    .select('id, nombre')
-    .eq('activo', true)
-    .order('nombre')
+  // Build colegio lookup map
+  const colegiosMap = new Map((colegios ?? []).map((c: any) => [c.id, { nombre: c.nombre, codigo: c.codigo }]))
+
+  // Build grupo nombre map for active groups
+  // (no join embed to avoid PostgREST INNER JOIN silently dropping rows)
+  const grupoIds = [...new Set((grupoAlumnosData ?? []).map((ga: any) => ga.grupo_id))]
+  const { data: gruposData } = grupoIds.length > 0
+    ? await admin.from('grupos').select('id, nombre').in('id', grupoIds)
+    : { data: [] as any[] }
+  const grupoNombreMap = new Map((gruposData ?? []).map((g: any) => [g.id, g.nombre]))
+
+  const gruposByAlumno: Record<string, { grupo_id: string; grupo: { id: string; nombre: string } | null }[]> = {}
+  for (const ga of (grupoAlumnosData ?? []) as any[]) {
+    if (!gruposByAlumno[ga.alumno_id]) gruposByAlumno[ga.alumno_id] = []
+    gruposByAlumno[ga.alumno_id].push({
+      grupo_id: ga.grupo_id,
+      grupo: grupoNombreMap.has(ga.grupo_id) ? { id: ga.grupo_id, nombre: grupoNombreMap.get(ga.grupo_id)! } : null,
+    })
+  }
+  const usuariosConGrupo = (usuarios ?? []).map((u: any) => ({
+    ...u,
+    colegio: u.colegio_id ? (colegiosMap.get(u.colegio_id) ?? null) : null,
+    grupo_alumnos: gruposByAlumno[u.id] ?? [],
+  }))
 
   const totales = {
     admins: (usuarios ?? []).filter((u: any) => u.rol === 'admin_colegio').length,
@@ -58,9 +86,10 @@ export default async function AdminUsuariosPage({ searchParams }: Props) {
           </div>
         </Link>
         <AdminUsuariosClient
-          usuarios={(usuarios ?? []) as any[]}
-          colegios={(colegios ?? []) as any[]}
+          usuarios={usuariosConGrupo as any[]}
+          colegios={(colegios ?? []).filter((c: any) => c.activo !== false) as any[]}
           rolFiltro={rol ?? ''}
+          libros={(libros ?? []) as any[]}
         />
       </div>
     </div>

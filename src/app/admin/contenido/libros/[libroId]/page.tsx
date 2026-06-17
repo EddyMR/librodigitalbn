@@ -19,7 +19,7 @@ export default async function LibroAdminPage({ params }: Props) {
     { data: libroGruposActivos },
   ] = await Promise.all([
     admin.from('libros').select('id, titulo').eq('id', libroId).single(),
-    admin.from('bloques').select('id, titulo, descripcion, orden, activo').eq('libro_id', libroId).eq('activo', true).order('orden'),
+    admin.from('bloques').select('id, titulo, descripcion, orden, activo').eq('libro_id', libroId).eq('activo', true),
     admin.from('grupos').select('id, nombre, colegio_id, colegios(id, nombre, codigo)').eq('activo', true).order('nombre'),
     admin.from('libro_grupos').select('grupo_id').eq('libro_id', libroId).eq('activo', true),
   ])
@@ -34,12 +34,13 @@ export default async function LibroAdminPage({ params }: Props) {
         .select('id, titulo, tipo, imagen_url, orden, bloque_id')
         .in('bloque_id', bloqueIds)
         .eq('activo', true)
-        .order('orden')
     : { data: [] }
 
-  const bloques = (bloquesData ?? []).map(b => ({
+  const sortedBloques = (bloquesData ?? []).sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+  const sortedHojas = (hojasData ?? []).sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+  const bloques = sortedBloques.map(b => ({
     ...b,
-    hojas: (hojasData ?? []).filter(h => h.bloque_id === b.id),
+    hojas: sortedHojas.filter(h => h.bloque_id === b.id),
   }))
 
   const asignadosSet = new Set((libroGruposActivos ?? []).map((r: any) => r.grupo_id))

@@ -1,16 +1,27 @@
 -- ============================================================
 -- LIBRO DIGITAL BUENA NUEVA — SCHEMA COMPLETO Y ACTUALIZADO
--- Ejecutar en orden en el SQL Editor de Supabase (proyecto nuevo)
+-- Versión: 2025-06
+-- Cambios incluidos respecto a versión anterior:
+--   · admin_passwords  (gestión de contraseñas del panel general)
+--   · ciclos           (ciclos catequéticos globales)
+--   · grupos.ciclo_id  (FK a ciclos)
+--   · grupo_alumnos: activo + fecha_ingreso + fecha_egreso
+--                    (historial de membresía por ciclo)
+--   · my_alumno_grupo_id() filtra activo = true
+-- ============================================================
+-- Para instalar en un proyecto Supabase nuevo:
+--   SQL Editor → New query → pegar todo → Run
 -- ============================================================
 
--- Extensiones necesarias
+-- ============================================================
+-- EXTENSIONES
+-- ============================================================
 create extension if not exists "uuid-ossp";
 create extension if not exists "pg_trgm";
 
 -- ============================================================
 -- ENUMS
 -- ============================================================
-
 create type rol_usuario as enum ('alumno', 'catequista', 'admin_colegio');
 
 create type tipo_hoja as enum (
@@ -37,7 +48,21 @@ create table colegios (
 );
 
 create index idx_colegios_nombre_trgm on colegios using gin (nombre gin_trgm_ops);
-create index idx_colegios_codigo on colegios (codigo);
+create index idx_colegios_codigo      on colegios (codigo);
+
+-- ============================================================
+-- CICLOS CATEQUÉTICOS (global, gestionados por admin general)
+-- Un ciclo activo es el ciclo actual de la plataforma.
+-- Solo puede haber uno activo a la vez (se controla por app).
+-- ============================================================
+create table ciclos (
+  id          uuid primary key default uuid_generate_v4(),
+  nombre      text not null unique,   -- ej. "2024-2025"
+  descripcion text,
+  activo      boolean not null default false,
+  orden       int not null default 0, -- para ordenar cronológicamente
+  created_at  timestamptz not null default now()
+);
 
 -- ============================================================
 -- PERFILES (extiende auth.users)
@@ -64,10 +89,13 @@ create index idx_perfiles_rol      on perfiles (rol);
 
 -- ============================================================
 -- GRUPOS
+-- Cada grupo pertenece a un colegio y opcionalmente a un ciclo.
+-- Cada ciclo tiene grupos propios (no se reutilizan entre ciclos).
 -- ============================================================
 create table grupos (
   id            uuid primary key default uuid_generate_v4(),
   colegio_id    uuid not null references colegios(id) on delete cascade,
+  ciclo_id      uuid references ciclos(id) on delete set null,
   nombre        text not null,
   catequista_id uuid references perfiles(id) on delete set null,
   activo        boolean not null default true,
@@ -75,14 +103,28 @@ create table grupos (
 );
 
 create index idx_grupos_colegio    on grupos (colegio_id);
+create index idx_grupos_ciclo      on grupos (ciclo_id);
 create index idx_grupos_catequista on grupos (catequista_id);
 
+-- ============================================================
+-- MEMBRESÍA ALUMNO → GRUPO (con historial)
+-- Cuando un alumno "brinca" de grupo/ciclo:
+--   · Se actualiza activo = false, fecha_egreso = now() en el registro viejo
+--   · Se inserta nuevo registro activo = true en el nuevo grupo
+-- La PK (grupo_id, alumno_id) sigue válida porque cada ciclo
+-- usa grupos distintos.
+-- ============================================================
 create table grupo_alumnos (
-  grupo_id  uuid not null references grupos(id) on delete cascade,
-  alumno_id uuid not null references perfiles(id) on delete cascade,
-  joined_at timestamptz not null default now(),
+  grupo_id      uuid not null references grupos(id) on delete cascade,
+  alumno_id     uuid not null references perfiles(id) on delete cascade,
+  activo        boolean not null default true,
+  fecha_ingreso timestamptz not null default now(),
+  fecha_egreso  timestamptz,
   primary key (grupo_id, alumno_id)
 );
+
+create index idx_grupo_alumnos_alumno on grupo_alumnos (alumno_id);
+create index idx_grupo_alumnos_grupo  on grupo_alumnos (grupo_id);
 
 -- ============================================================
 -- CONTENIDO (compartido entre todos los colegios)
@@ -116,7 +158,7 @@ create table hojas (
   tipo       tipo_hoja not null default 'lectura',
   orden      int not null default 0,
   activo     boolean not null default true,
-  -- config JSONB: preguntas[] para cuestionario; audio_url/video_url/video_tipo para multimedia
+  -- config JSONB: preguntas[] para cuestionario; audio_url/video_url para multimedia
   config     jsonb
 );
 
@@ -146,7 +188,7 @@ create table libro_grupos (
 );
 
 -- ============================================================
--- VISITAS (tracking por alumno)
+-- VISITAS (tracking de lectura por alumno)
 -- ============================================================
 create table visitas_hojas (
   id             uuid primary key default uuid_generate_v4(),
@@ -193,7 +235,7 @@ create table comentarios (
 create index idx_comentarios_entrega on comentarios (entrega_id);
 
 -- ============================================================
--- QR TOKENS (login de alumnos por QR)
+-- QR TOKENS (login rápido de alumnos)
 -- ============================================================
 create table qr_tokens (
   id         uuid primary key default uuid_generate_v4(),
@@ -205,9 +247,24 @@ create table qr_tokens (
 );
 
 -- ============================================================
+-- CONTRASEÑAS DEL PANEL GENERAL
+-- Permite cambiar la contraseña de acceso al panel general
+-- sin tocar variables de entorno. Solo accesible vía service_role.
+-- Los valores se guardan como SHA-256(ADMIN_GENERAL_SECRET + password).
+-- ============================================================
+create table admin_passwords (
+  id         uuid primary key default uuid_generate_v4(),
+  etiqueta   text not null default 'Principal',
+  hash       text not null,
+  activo     boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
 alter table colegios        enable row level security;
+alter table ciclos          enable row level security;
 alter table perfiles        enable row level security;
 alter table grupos          enable row level security;
 alter table grupo_alumnos   enable row level security;
@@ -220,9 +277,10 @@ alter table visitas_hojas   enable row level security;
 alter table entregas        enable row level security;
 alter table comentarios     enable row level security;
 alter table qr_tokens       enable row level security;
+alter table admin_passwords enable row level security;
 
 -- ============================================================
--- HELPER FUNCTIONS (security definer = bypassan RLS)
+-- HELPER FUNCTIONS (security definer = bypass RLS)
 -- ============================================================
 create or replace function get_my_profile()
 returns perfiles language sql security definer stable as $$
@@ -242,14 +300,18 @@ $$;
 create or replace function my_grupo_ids()
 returns uuid[] language sql security definer stable as $$
   select array_agg(id) from grupos
-  where catequista_id = (select id from perfiles where user_id = auth.uid());
+  where catequista_id = (select id from perfiles where user_id = auth.uid())
+    and activo = true;
 $$;
 
+-- Retorna el grupo ACTIVO actual del alumno autenticado
 create or replace function my_alumno_grupo_id()
 returns uuid language sql security definer stable as $$
-  select ga.grupo_id from grupo_alumnos ga
+  select ga.grupo_id
+  from grupo_alumnos ga
   join perfiles p on p.id = ga.alumno_id
   where p.user_id = auth.uid()
+    and ga.activo = true
   limit 1;
 $$;
 
@@ -258,21 +320,28 @@ $$;
 -- ============================================================
 
 -- Colegios: cualquiera ve los activos (selector de login)
-create policy "colegios_select_all" on colegios for select using (activo = true);
+create policy "colegios_select_all" on colegios
+  for select using (activo = true);
+
+-- Ciclos: cualquier usuario autenticado los puede ver
+create policy "ciclos_select_all" on ciclos
+  for select using (true);
 
 -- Perfiles: ves los de tu mismo colegio y el tuyo propio
-create policy "perfiles_select_own_colegio" on perfiles for select
-  using (colegio_id = my_colegio_id() or user_id = auth.uid());
-create policy "perfiles_update_own" on perfiles for update
-  using (user_id = auth.uid());
+create policy "perfiles_select_own_colegio" on perfiles
+  for select using (colegio_id = my_colegio_id() or user_id = auth.uid());
+create policy "perfiles_update_own" on perfiles
+  for update using (user_id = auth.uid());
 
 -- Grupos: ves los de tu colegio
-create policy "grupos_select_colegio" on grupos for select
-  using (colegio_id = my_colegio_id());
+create policy "grupos_select_colegio" on grupos
+  for select using (colegio_id = my_colegio_id());
 
--- Grupo_alumnos: ves los de grupos de tu colegio
-create policy "grupo_alumnos_select" on grupo_alumnos for select
-  using (grupo_id in (select id from grupos where colegio_id = my_colegio_id()));
+-- Grupo_alumnos: ves todos (activos e históricos) de grupos de tu colegio
+create policy "grupo_alumnos_select" on grupo_alumnos
+  for select using (
+    grupo_id in (select id from grupos where colegio_id = my_colegio_id())
+  );
 
 -- Libros, bloques, hojas, zonas: visibles si están activos
 create policy "libros_select"  on libros          for select using (activo = true);
@@ -281,54 +350,74 @@ create policy "hojas_select"   on hojas           for select using (activo = tru
 create policy "zonas_select"   on zonas_escritura for select using (true);
 
 -- Libro_grupos: ves los de grupos de tu colegio
-create policy "libro_grupos_select" on libro_grupos for select
-  using (grupo_id in (select id from grupos where colegio_id = my_colegio_id()));
+create policy "libro_grupos_select" on libro_grupos
+  for select using (
+    grupo_id in (select id from grupos where colegio_id = my_colegio_id())
+  );
 
--- Visitas: alumno ve las suyas; catequista ve las de su grupo
-create policy "visitas_select_own" on visitas_hojas for select
-  using (
+-- Visitas: alumno ve las suyas; catequista ve las de su grupo actual
+create policy "visitas_select_own" on visitas_hojas
+  for select using (
     alumno_id = (select id from perfiles where user_id = auth.uid())
     or
     alumno_id in (
       select ga.alumno_id from grupo_alumnos ga
       where ga.grupo_id = any(my_grupo_ids())
+        and ga.activo = true
     )
   );
-create policy "visitas_upsert_own" on visitas_hojas for insert
-  with check (alumno_id = (select id from perfiles where user_id = auth.uid()));
-create policy "visitas_update_own" on visitas_hojas for update
-  using (alumno_id = (select id from perfiles where user_id = auth.uid()));
+create policy "visitas_upsert_own" on visitas_hojas
+  for insert with check (
+    alumno_id = (select id from perfiles where user_id = auth.uid())
+  );
+create policy "visitas_update_own" on visitas_hojas
+  for update using (
+    alumno_id = (select id from perfiles where user_id = auth.uid())
+  );
 
--- Entregas: alumno ve y edita las suyas; catequista ve las de su grupo
-create policy "entregas_select" on entregas for select
-  using (
+-- Entregas: alumno ve y edita las suyas; catequista ve las de su grupo actual
+create policy "entregas_select" on entregas
+  for select using (
     alumno_id = (select id from perfiles where user_id = auth.uid())
     or
     alumno_id in (
       select ga.alumno_id from grupo_alumnos ga
       where ga.grupo_id = any(my_grupo_ids())
+        and ga.activo = true
     )
   );
-create policy "entregas_insert_own" on entregas for insert
-  with check (alumno_id = (select id from perfiles where user_id = auth.uid()));
-create policy "entregas_update_own" on entregas for update
-  using (alumno_id = (select id from perfiles where user_id = auth.uid()));
+create policy "entregas_insert_own" on entregas
+  for insert with check (
+    alumno_id = (select id from perfiles where user_id = auth.uid())
+  );
+create policy "entregas_update_own" on entregas
+  for update using (
+    alumno_id = (select id from perfiles where user_id = auth.uid())
+  );
 
 -- Comentarios: catequista gestiona los suyos; alumno ve los publicados de sus entregas
-create policy "comentarios_select" on comentarios for select
-  using (
+create policy "comentarios_select" on comentarios
+  for select using (
     (publicado = true and entrega_id in (
       select id from entregas
       where alumno_id = (select id from perfiles where user_id = auth.uid())
     ))
     or catequista_id = (select id from perfiles where user_id = auth.uid())
   );
-create policy "comentarios_catequista_manage" on comentarios for all
-  using (catequista_id = (select id from perfiles where user_id = auth.uid()));
+create policy "comentarios_catequista_manage" on comentarios
+  for all using (
+    catequista_id = (select id from perfiles where user_id = auth.uid())
+  );
 
 -- QR tokens: alumno ve los suyos
-create policy "qr_tokens_select" on qr_tokens for select
-  using (alumno_id = (select id from perfiles where user_id = auth.uid()));
+create policy "qr_tokens_select" on qr_tokens
+  for select using (
+    alumno_id = (select id from perfiles where user_id = auth.uid())
+  );
+
+-- admin_passwords: solo accesible por service_role (API del panel general)
+-- No se necesitan políticas de usuario ya que todas las lecturas/escrituras
+-- se hacen con el cliente de servicio (bypassa RLS).
 
 -- ============================================================
 -- FUNCIONES
@@ -341,8 +430,8 @@ begin
   insert into visitas_hojas (alumno_id, hoja_id)
   values (p_alumno_id, p_hoja_id)
   on conflict (alumno_id, hoja_id) do update
-    set ultima_visita = now(),
-        visitas_count = visitas_hojas.visitas_count + 1;
+    set ultima_visita  = now(),
+        visitas_count  = visitas_hojas.visitas_count + 1;
 end;
 $$;
 
@@ -350,9 +439,9 @@ $$;
 create or replace function generar_codigo_colegio()
 returns text language plpgsql as $$
 declare
-  chars        text := 'ABCDEFGHJKMNPQRSTUVWXY23456789';
-  result       text;
-  ya_existe    boolean;
+  chars     text := 'ABCDEFGHJKMNPQRSTUVWXY23456789';
+  result    text;
+  ya_existe boolean;
 begin
   loop
     result := substr(chars, floor(random() * length(chars) + 1)::int, 1)
@@ -395,17 +484,15 @@ begin
 end;
 $$;
 
-create trigger perfiles_updated_at before update on perfiles
+create trigger perfiles_updated_at
+  before update on perfiles
   for each row execute function update_updated_at();
 
 -- ============================================================
 -- STORAGE — 2 buckets necesarios
 -- ============================================================
 
--- ── Bucket 1: "libros" (público) ─────────────────────────────
--- Contiene: imágenes de hojas, portadas de libros,
---           archivos de audio/video para actividades multimedia
--- Sube: el admin global (service_role)
+-- Bucket "libros" (público): imágenes de hojas, portadas, audios/videos
 insert into storage.buckets (id, name, public)
 values ('libros', 'libros', true)
 on conflict (id) do nothing;
@@ -421,10 +508,8 @@ create policy "libros_delete" on storage.objects
   for delete to service_role
   using (bucket_id = 'libros');
 
--- ── Bucket 2: "entregas" (público) ───────────────────────────
--- Contiene: fotos de alumnos, grabaciones de audio, dibujos
+-- Bucket "entregas" (público): fotos, grabaciones, dibujos de alumnos
 -- Estructura: {tipo}/{alumno_id}/{hoja_id}/{timestamp}.{ext}
--- Sube: la API /api/colegio/uploads usando service_role
 insert into storage.buckets (id, name, public)
 values ('entregas', 'entregas', true)
 on conflict (id) do nothing;
@@ -439,3 +524,75 @@ create policy "entregas_public_read" on storage.objects
 create policy "entregas_delete" on storage.objects
   for delete to service_role
   using (bucket_id = 'entregas');
+
+
+-- ============================================================
+-- ============================================================
+-- MIGRACIÓN PARA BASE DE DATOS EXISTENTE
+-- (NO ejecutar en instalación nueva — ya está incluido arriba)
+-- Ejecutar solo si ya tienes datos en producción
+-- ============================================================
+-- ============================================================
+
+/*
+
+-- 1. Tabla ciclos
+create table if not exists ciclos (
+  id          uuid primary key default uuid_generate_v4(),
+  nombre      text not null unique,
+  descripcion text,
+  activo      boolean not null default false,
+  orden       int not null default 0,
+  created_at  timestamptz not null default now()
+);
+alter table ciclos enable row level security;
+create policy "ciclos_select_all" on ciclos for select using (true);
+
+-- 2. ciclo_id en grupos
+alter table grupos add column if not exists ciclo_id uuid references ciclos(id) on delete set null;
+create index if not exists idx_grupos_ciclo on grupos (ciclo_id);
+
+-- 3. Historial de membresía en grupo_alumnos
+alter table grupo_alumnos add column if not exists activo        boolean not null default true;
+alter table grupo_alumnos add column if not exists fecha_ingreso timestamptz not null default now();
+alter table grupo_alumnos add column if not exists fecha_egreso  timestamptz;
+
+-- Si el campo se llamaba joined_at, puedes copiar los valores:
+-- update grupo_alumnos set fecha_ingreso = joined_at where fecha_ingreso = now();
+
+create index if not exists idx_grupo_alumnos_alumno on grupo_alumnos (alumno_id);
+
+-- 4. Tabla admin_passwords
+create table if not exists admin_passwords (
+  id         uuid primary key default uuid_generate_v4(),
+  etiqueta   text not null default 'Principal',
+  hash       text not null,
+  activo     boolean not null default true,
+  created_at timestamptz not null default now()
+);
+alter table admin_passwords enable row level security;
+
+-- 5. Actualizar función my_alumno_grupo_id para filtrar activo = true
+create or replace function my_alumno_grupo_id()
+returns uuid language sql security definer stable as $$
+  select ga.grupo_id
+  from grupo_alumnos ga
+  join perfiles p on p.id = ga.alumno_id
+  where p.user_id = auth.uid()
+    and ga.activo = true
+  limit 1;
+$$;
+
+-- 6. Actualizar función my_grupo_ids para solo grupos activos del catequista
+create or replace function my_grupo_ids()
+returns uuid[] language sql security definer stable as $$
+  select array_agg(id) from grupos
+  where catequista_id = (select id from perfiles where user_id = auth.uid())
+    and activo = true;
+$$;
+
+-- 7. Actualizar políticas RLS de visitas y entregas para activo = true
+-- (Opcional si las políticas actuales ya funcionan — el filtro activo=true
+--  en my_grupo_ids() ya limita el acceso a grupos activos)
+
+*/

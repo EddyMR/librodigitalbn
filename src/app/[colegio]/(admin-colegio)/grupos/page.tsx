@@ -28,11 +28,7 @@ export default async function GruposPage({ params }: Props) {
   ] = await Promise.all([
     admin
       .from('grupos')
-      .select(`
-        id, nombre, activo, created_at,
-        catequista:perfiles!grupos_catequista_id_fkey(id, nombre, apellido, avatar_id),
-        grupo_alumnos(alumno_id)
-      `)
+      .select('id, nombre, activo, created_at, catequista_id')
       .eq('colegio_id', colegioId)
       .order('nombre'),
 
@@ -64,15 +60,22 @@ export default async function GruposPage({ params }: Props) {
   ])
 
   // Fetch grupo_alumnos flat, filtered to this colegio's groups
-  const grupoIds = (grupos ?? []).map(g => g.id)
+  const grupoIds = (grupos ?? []).map((g: any) => g.id)
   const { data: grupoAlumnosRaw } = grupoIds.length > 0
-    ? await admin.from('grupo_alumnos').select('alumno_id, grupo_id').in('grupo_id', grupoIds)
+    ? await admin.from('grupo_alumnos').select('alumno_id, grupo_id').in('grupo_id', grupoIds).eq('activo', true)
     : { data: [] }
 
-  // Build enriched alumnos with grupo info
-  const grupoNombreMap = new Map((grupos ?? []).map(g => [g.id, (g as any).nombre as string]))
+  // Build lookup maps
+  const catequistaMap = new Map((catequistas ?? []).map((c: any) => [c.id, c]))
+  const grupoNombreMap = new Map((grupos ?? []).map((g: any) => [g.id, g.nombre as string]))
+
+  // alumno_ids per grupo (for group cards)
+  const alumnosByGrupo: Record<string, { alumno_id: string }[]> = {}
+  // grupo info per alumno (for alumno cards)
   const alumnoGrupoMap = new Map<string, { grupo_id: string; grupo: { id: string; nombre: string } | null }[]>()
   for (const ga of grupoAlumnosRaw ?? []) {
+    if (!alumnosByGrupo[ga.grupo_id]) alumnosByGrupo[ga.grupo_id] = []
+    alumnosByGrupo[ga.grupo_id].push({ alumno_id: ga.alumno_id })
     if (!alumnoGrupoMap.has(ga.alumno_id)) alumnoGrupoMap.set(ga.alumno_id, [])
     alumnoGrupoMap.get(ga.alumno_id)!.push({
       grupo_id: ga.grupo_id,
@@ -81,7 +84,15 @@ export default async function GruposPage({ params }: Props) {
         : null,
     })
   }
-  const alumnos = (alumnosRaw ?? []).map(a => ({
+
+  // Enrich grupos with catequista + alumno count (no embed = no INNER JOIN)
+  const gruposConDatos = (grupos ?? []).map((g: any) => ({
+    ...g,
+    catequista: g.catequista_id ? (catequistaMap.get(g.catequista_id) ?? null) : null,
+    grupo_alumnos: alumnosByGrupo[g.id] ?? [],
+  }))
+
+  const alumnos = (alumnosRaw ?? []).map((a: any) => ({
     ...a,
     grupo_alumnos: alumnoGrupoMap.get(a.id) ?? [],
   }))
@@ -104,7 +115,7 @@ export default async function GruposPage({ params }: Props) {
       </div>
 
       <GruposClient
-        grupos={(grupos ?? []) as any[]}
+        grupos={gruposConDatos as any[]}
         catequistas={(catequistas ?? []) as any[]}
         libros={(libros ?? []) as any[]}
         alumnos={alumnos as any[]}

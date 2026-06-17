@@ -7,70 +7,57 @@ function checkAdmin(request: NextRequest) {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ grupoId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   if (!checkAdmin(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { grupoId } = await params
+  const { id } = await params
   const body = await request.json()
   const admin = createAdminClient()
 
   const updates: Record<string, unknown> = {}
   if (body.nombre !== undefined) updates.nombre = body.nombre
-  if ('catequista_id' in body) updates.catequista_id = body.catequista_id ?? null
-  if ('ciclo_id' in body) updates.ciclo_id = body.ciclo_id ?? null
+  if (body.descripcion !== undefined) updates.descripcion = body.descripcion
   if (body.activo !== undefined) updates.activo = body.activo
 
+  // Solo un ciclo activo a la vez
+  if (body.activo === true) {
+    await admin.from('ciclos').update({ activo: false }).neq('id', id)
+  }
+
   const { data, error } = await admin
-    .from('grupos')
+    .from('ciclos')
     .update(updates)
-    .eq('id', grupoId)
-    .select('id, nombre, activo, ciclo_id, catequista_id')
+    .eq('id', id)
+    .select('id, nombre, descripcion, activo, orden, created_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // Fetch catequista separately
-  let catequista = null
-  if (data.catequista_id) {
-    const { data: cat } = await admin
-      .from('perfiles')
-      .select('id, nombre, apellido, avatar_id')
-      .eq('id', data.catequista_id)
-      .single()
-    catequista = cat
-  }
-
-  return NextResponse.json({ ok: true, grupo: { ...data, catequista } })
+  return NextResponse.json({ ok: true, ciclo: data })
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ grupoId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   if (!checkAdmin(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { grupoId } = await params
+  const { id } = await params
   const admin = createAdminClient()
 
-  const { count: alumnosCount } = await admin
-    .from('grupo_alumnos')
+  const { count } = await admin
+    .from('grupos')
     .select('*', { count: 'exact', head: true })
-    .eq('grupo_id', grupoId)
-    .eq('activo', true)
+    .eq('ciclo_id', id)
 
-  if ((alumnosCount ?? 0) > 0) {
+  if ((count ?? 0) > 0) {
     return NextResponse.json(
-      {
-        error: `Este grupo tiene ${alumnosCount} alumno(s). Mueve o elimina los alumnos primero, o desactiva el grupo.`,
-        alumnosCount,
-        canDeactivate: true,
-      },
+      { error: `Este ciclo tiene ${count} grupo(s) asignado(s). Reasigna o elimina los grupos primero.` },
       { status: 409 }
     )
   }
 
-  const { error } = await admin.from('grupos').delete().eq('id', grupoId)
+  const { error } = await admin.from('ciclos').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

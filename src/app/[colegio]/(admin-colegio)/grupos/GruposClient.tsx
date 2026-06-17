@@ -70,7 +70,10 @@ export default function GruposClient({
   const [libroCountMap, setLibroCountMap] = useState(initialLibroCountMap)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
-  // Refresh data when page regains focus (e.g. returning from crear catequista)
+  useEffect(() => { setGrupos(initialGrupos) }, [initialGrupos])
+  useEffect(() => { setAlumnos(initialAlumnos) }, [initialAlumnos])
+  useEffect(() => { setLibroCountMap(initialLibroCountMap) }, [initialLibroCountMap])
+
   useEffect(() => {
     const onFocus = () => router.refresh()
     window.addEventListener('focus', onFocus)
