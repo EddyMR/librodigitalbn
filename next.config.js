@@ -49,6 +49,9 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ['localhost:3000', productionHost].filter(Boolean),
     },
+    staleTimes: {
+      dynamic: 0,
+    },
   },
 }
 
