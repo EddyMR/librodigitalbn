@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Building2, Users, Link as LinkIcon, Pencil, Trash2, UserX, LayoutList } from 'lucide-react'
 import Link from 'next/link'
 import { Modal, Toast, Confirm } from '@/components/ui'
@@ -20,13 +20,41 @@ interface Props {
 
 export default function ColegiosListClient({ colegios: initial, countMap }: Props) {
   const [colegios, setColegios] = useState(initial)
-  useEffect(() => { setColegios(initial) }, [initial])
+
+  // Create form state
+  const [nombre, setNombre] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createSuccess, setCreateSuccess] = useState('')
+
+  // Edit / delete state
   const [editing, setEditing] = useState<Colegio | null>(null)
   const [form, setForm] = useState({ nombre: '', activo: true })
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Colegio | null>(null)
   const [deleteError, setDeleteError] = useState<{ msg: string; colegio: Colegio } | null>(null)
+
+  async function handleCreate() {
+    if (!nombre.trim()) return
+    setCreating(true)
+    setCreateSuccess('')
+    const res = await fetch('/api/admin/colegios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre: nombre.trim() }),
+    })
+    const data = await res.json()
+    if (data.error) {
+      setToast({ msg: data.error, type: 'error' })
+    } else {
+      setColegios(prev =>
+        [...prev, data.colegio].sort((a, b) => a.nombre.localeCompare(b.nombre))
+      )
+      setCreateSuccess(`Colegio creado con código: ${data.codigo}`)
+      setNombre('')
+    }
+    setCreating(false)
+  }
 
   function openEdit(c: Colegio) {
     setEditing(c)
@@ -85,7 +113,6 @@ export default function ColegiosListClient({ colegios: initial, countMap }: Prop
     <>
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Confirm delete */}
       {confirmDelete && (
         <Confirm
           open
@@ -98,7 +125,6 @@ export default function ColegiosListClient({ colegios: initial, countMap }: Prop
         />
       )}
 
-      {/* Delete error (has related data) */}
       {deleteError && (
         <Modal open onClose={() => setDeleteError(null)} title="No se puede eliminar" size="sm">
           <div className="space-y-4">
@@ -119,7 +145,6 @@ export default function ColegiosListClient({ colegios: initial, countMap }: Prop
         </Modal>
       )}
 
-      {/* Edit modal */}
       <Modal open={!!editing} onClose={() => setEditing(null)} title="Editar colegio">
         <div className="space-y-4">
           <div className="space-y-1.5">
@@ -157,6 +182,34 @@ export default function ColegiosListClient({ colegios: initial, countMap }: Prop
         </div>
       </Modal>
 
+      {/* Create form */}
+      <div className="card p-5">
+        <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-brand-500" />
+          Agregar colegio
+        </h2>
+        {createSuccess && (
+          <p className="text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg mb-3">{createSuccess}</p>
+        )}
+        <div className="flex gap-2">
+          <input
+            className="input flex-1"
+            placeholder="Nombre del colegio"
+            value={nombre}
+            onChange={e => setNombre(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+          />
+          <button
+            onClick={handleCreate}
+            disabled={creating || !nombre.trim()}
+            className="btn-primary px-5"
+          >
+            {creating ? '...' : 'Crear'}
+          </button>
+        </div>
+      </div>
+
+      {/* List */}
       <div className="space-y-3">
         {colegios.length === 0 && (
           <p className="text-center text-slate-400 py-8">No hay colegios aún. Crea el primero arriba.</p>

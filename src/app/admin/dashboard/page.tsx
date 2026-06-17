@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { Building2, Users, BookOpen, Plus, LayoutList, Upload, ShieldCheck, CalendarDays, ArrowRight } from 'lucide-react'
 import type { Metadata } from 'next'
+import DashboardRefresh from './DashboardRefresh'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Panel General' }
@@ -30,6 +31,7 @@ export default async function AdminDashboard() {
 
   return (
     <div className="min-h-dvh bg-slate-50">
+      <DashboardRefresh />
       {/* Admin header */}
       <div className="bg-slate-900 px-6 py-5 flex items-center justify-between">
         <div>
