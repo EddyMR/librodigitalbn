@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { Search, UserX, UserCheck, Trash2, Pencil, UserPlus, X, Copy, Check, QrCode, RefreshCw } from 'lucide-react'
 import { Modal, Confirm, Toast, Badge } from '@/components/ui'
 import { nombreCompleto, labelRol, colorRolBadge, formatFecha } from '@/lib/utils'
@@ -51,7 +50,6 @@ export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFi
   const [creando, setCreando] = useState(false)
   const [deleteError, setDeleteError] = useState<{ msg: string; usuario: Usuario } | null>(null)
   const [accesoAlumno, setAccesoAlumno] = useState<Usuario | null>(null)
-  const router = useRouter()
 
   const sinGrupoCount = useMemo(
     () => usuarios.filter(u => u.rol === 'alumno' && !u.grupo_alumnos?.[0]?.grupo).length,
@@ -113,10 +111,6 @@ export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFi
     if (!deleteError) return
     await handleToggle({ ...deleteError.usuario, activo: true })
     setDeleteError(null)
-  }
-
-  function refresh() {
-    router.refresh()
   }
 
   return (
@@ -186,7 +180,6 @@ export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFi
           onCreated={(newUser) => {
             setCreando(false)
             setUsuarios(prev => [...prev, newUser].sort((a, b) => a.nombre.localeCompare(b.nombre)))
-            router.refresh()
             setToast({ msg: 'Usuario creado correctamente', type: 'success' })
           }}
         />
