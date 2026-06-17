@@ -123,8 +123,9 @@ create table grupo_alumnos (
   primary key (grupo_id, alumno_id)
 );
 
-create index idx_grupo_alumnos_alumno on grupo_alumnos (alumno_id);
-create index idx_grupo_alumnos_grupo  on grupo_alumnos (grupo_id);
+create index idx_grupo_alumnos_alumno       on grupo_alumnos (alumno_id);
+create index idx_grupo_alumnos_grupo        on grupo_alumnos (grupo_id);
+create index idx_grupo_alumnos_alumno_activo on grupo_alumnos (alumno_id, activo);
 
 -- ============================================================
 -- CONTENIDO (compartido entre todos los colegios)
@@ -187,6 +188,8 @@ create table libro_grupos (
   primary key (libro_id, grupo_id)
 );
 
+create index idx_libro_grupos_grupo on libro_grupos (grupo_id);
+
 -- ============================================================
 -- VISITAS (tracking de lectura por alumno)
 -- ============================================================
@@ -245,6 +248,8 @@ create table qr_tokens (
   expira_at  timestamptz not null default (now() + interval '1 hour'),
   created_at timestamptz not null default now()
 );
+
+create index idx_qr_tokens_alumno on qr_tokens (alumno_id);
 
 -- ============================================================
 -- CONTRASEÑAS DEL PANEL GENERAL
@@ -560,7 +565,10 @@ alter table grupo_alumnos add column if not exists fecha_egreso  timestamptz;
 -- Si el campo se llamaba joined_at, puedes copiar los valores:
 -- update grupo_alumnos set fecha_ingreso = joined_at where fecha_ingreso = now();
 
-create index if not exists idx_grupo_alumnos_alumno on grupo_alumnos (alumno_id);
+create index if not exists idx_grupo_alumnos_alumno        on grupo_alumnos (alumno_id);
+create index if not exists idx_grupo_alumnos_alumno_activo on grupo_alumnos (alumno_id, activo);
+create index if not exists idx_libro_grupos_grupo          on libro_grupos (grupo_id);
+create index if not exists idx_qr_tokens_alumno            on qr_tokens (alumno_id);
 
 -- 4. Tabla admin_passwords
 create table if not exists admin_passwords (
