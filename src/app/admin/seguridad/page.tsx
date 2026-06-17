@@ -26,7 +26,7 @@ export default async function SeguridadPage() {
         <h1 className="text-xl font-bold text-slate-900 flex-1">Contraseñas del panel</h1>
       </div>
 
-      <SeguridadClient initialPasswords={list} isEmpty={list.length === 0} />
+      <SeguridadClient initialPasswords={list} />
     </div>
   )
 }

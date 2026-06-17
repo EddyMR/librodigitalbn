@@ -11,10 +11,9 @@ interface AdminPassword {
 
 interface Props {
   initialPasswords: AdminPassword[]
-  isEmpty: boolean
 }
 
-export default function SeguridadClient({ initialPasswords, isEmpty }: Props) {
+export default function SeguridadClient({ initialPasswords }: Props) {
   const [passwords, setPasswords] = useState<AdminPassword[]>(initialPasswords)
   const [showForm, setShowForm] = useState(false)
   const [etiqueta, setEtiqueta] = useState('')
@@ -23,6 +22,8 @@ export default function SeguridadClient({ initialPasswords, isEmpty }: Props) {
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+
+  const isEmpty = passwords.length === 0
 
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type })
@@ -80,9 +81,8 @@ export default function SeguridadClient({ initialPasswords, isEmpty }: Props) {
         </div>
       )}
 
-      {/* List */}
       <section className="space-y-2">
-        {passwords.length === 0 ? (
+        {isEmpty ? (
           <p className="text-slate-400 text-sm text-center py-6">No hay contraseñas registradas</p>
         ) : (
           passwords.map(p => (
@@ -109,7 +109,6 @@ export default function SeguridadClient({ initialPasswords, isEmpty }: Props) {
         )}
       </section>
 
-      {/* Add form */}
       {showForm ? (
         <div className="card p-5 space-y-4">
           <h3 className="font-semibold text-slate-800">Nueva contraseña</h3>
