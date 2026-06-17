@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Building2, Users, Link as LinkIcon, Pencil, Trash2, UserX, LayoutList } from 'lucide-react'
 import Link from 'next/link'
 import { Modal, Toast, Confirm } from '@/components/ui'
@@ -20,6 +20,7 @@ interface Props {
 
 export default function ColegiosListClient({ colegios: initial, countMap }: Props) {
   const [colegios, setColegios] = useState(initial)
+  useEffect(() => { setColegios(initial) }, [initial])
   const [editing, setEditing] = useState<Colegio | null>(null)
   const [form, setForm] = useState({ nombre: '', activo: true })
   const [saving, setSaving] = useState(false)
