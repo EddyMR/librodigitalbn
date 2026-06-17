@@ -9,7 +9,7 @@ function checkAdminAuth(request: NextRequest): boolean {
 export async function GET(request: NextRequest) {
   if (!checkAdminAuth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const admin = createAdminClient()
-  const { data } = await admin.from('colegios').select('id, nombre, codigo').eq('activo', true).order('nombre')
+  const { data } = await admin.from('colegios').select('id, nombre, codigo, activo, created_at').order('nombre')
   return NextResponse.json({ colegios: data ?? [] })
 }
 

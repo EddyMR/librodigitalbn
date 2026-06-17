@@ -42,7 +42,12 @@ export default function AdminUsuariosClient({ usuarios: initial, colegios, rolFi
   const [usuarios, setUsuarios] = useState(initial)
   const [rolFiltro, setRolFiltro] = useState(rolInit ?? '')
 
-  useEffect(() => { setUsuarios(initial) }, [initial])
+  useEffect(() => {
+    fetch('/api/admin/usuarios')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data.usuarios)) setUsuarios(data.usuarios) })
+      .catch(() => {})
+  }, [])
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [editando, setEditando] = useState<Usuario | null>(null)

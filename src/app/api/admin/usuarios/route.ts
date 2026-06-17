@@ -5,6 +5,48 @@ function checkAdmin(request: NextRequest) {
   return request.cookies.get('admin_token')?.value === process.env.ADMIN_GENERAL_SECRET
 }
 
+export async function GET(request: NextRequest) {
+  if (!checkAdmin(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const admin = createAdminClient()
+
+  const [
+    { data: usuarios },
+    { data: colegios },
+    { data: grupoAlumnosData },
+  ] = await Promise.all([
+    admin.from('perfiles').select('*').in('rol', ['admin_colegio', 'catequista', 'alumno']).order('nombre'),
+    admin.from('colegios').select('id, nombre, codigo').order('nombre'),
+    admin.from('grupo_alumnos').select('alumno_id, grupo_id').eq('activo', true),
+  ])
+
+  const colegiosMap = new Map((colegios ?? []).map((c: any) => [c.id, { nombre: c.nombre, codigo: c.codigo }]))
+
+  const grupoIds = [...new Set((grupoAlumnosData ?? []).map((ga: any) => ga.grupo_id))]
+  const { data: gruposData } = grupoIds.length > 0
+    ? await admin.from('grupos').select('id, nombre').in('id', grupoIds)
+    : { data: [] as any[] }
+  const grupoNombreMap = new Map((gruposData ?? []).map((g: any) => [g.id, g.nombre]))
+
+  const gruposByAlumno: Record<string, any[]> = {}
+  for (const ga of (grupoAlumnosData ?? []) as any[]) {
+    if (!gruposByAlumno[ga.alumno_id]) gruposByAlumno[ga.alumno_id] = []
+    gruposByAlumno[ga.alumno_id].push({
+      grupo_id: ga.grupo_id,
+      grupo: grupoNombreMap.has(ga.grupo_id)
+        ? { id: ga.grupo_id, nombre: grupoNombreMap.get(ga.grupo_id) }
+        : null,
+    })
+  }
+
+  const usuariosConGrupo = (usuarios ?? []).map((u: any) => ({
+    ...u,
+    colegio: u.colegio_id ? (colegiosMap.get(u.colegio_id) ?? null) : null,
+    grupo_alumnos: gruposByAlumno[u.id] ?? [],
+  }))
+
+  return NextResponse.json({ usuarios: usuariosConGrupo })
+}
+
 export async function POST(request: NextRequest) {
   if (!checkAdmin(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

@@ -25,6 +25,17 @@ export default function UsuariosClient({ usuarios, grupos, codigoColegio, rolAdm
   const [listaUsuarios, setListaUsuarios] = useState(usuarios)
 
   useEffect(() => { setListaUsuarios(usuarios) }, [usuarios])
+
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    const params = new URLSearchParams()
+    if (sp.get('rol')) params.set('rol', sp.get('rol')!)
+    if (sp.get('sin_grupo')) params.set('sin_grupo', '1')
+    fetch(`/api/colegio/usuarios?${params.toString()}`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data.usuarios)) setListaUsuarios(data.usuarios) })
+      .catch(() => {})
+  }, [])
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [confirm, setConfirm] = useState<{ type: 'delete' | 'toggle'; usuario: Perfil } | null>(null)

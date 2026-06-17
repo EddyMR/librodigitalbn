@@ -6,6 +6,10 @@ const withPWA = require('next-pwa')({
   buildExcludes: [/app-build-manifest\.json$/],
   runtimeCaching: [
     {
+      urlPattern: /\/admin(\/|$)/,
+      handler: 'NetworkOnly',
+    },
+    {
       urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
       handler: 'CacheFirst',
       options: {
