@@ -6,7 +6,11 @@ const withPWA = require('next-pwa')({
   buildExcludes: [/app-build-manifest\.json$/],
   runtimeCaching: [
     {
-      urlPattern: /\/admin(\/|$)/,
+      urlPattern: ({ url }: { url: URL }) =>
+        url.pathname !== '/' &&
+        !url.pathname.startsWith('/_next/') &&
+        !url.pathname.startsWith('/api/') &&
+        !url.pathname.match(/\.(ico|png|jpg|jpeg|svg|webp|woff2?|ttf|css|js)$/),
       handler: 'NetworkOnly',
     },
     {
