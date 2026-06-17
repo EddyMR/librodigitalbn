@@ -71,6 +71,15 @@ export default function AdminGruposClient({
   useEffect(() => { setAlumnos(initialAlumnos) }, [initialAlumnos])
   useEffect(() => { setLibroCountMap(initialLibroCountMap) }, [initialLibroCountMap])
 
+  // Fetch fresh grupos on mount regardless of SSR data
+  useEffect(() => {
+    if (!colegioId) return
+    fetch(`/api/admin/grupos?colegio_id=${colegioId}`)
+      .then(r => r.json())
+      .then(data => { if (data.grupos) setGrupos(data.grupos) })
+      .catch(() => {})
+  }, [colegioId])
+
   useEffect(() => {
     const onFocus = () => router.refresh()
     window.addEventListener('focus', onFocus)

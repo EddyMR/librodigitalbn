@@ -17,6 +17,44 @@ async function getAdminColegio(request: NextRequest) {
   return perfil
 }
 
+export async function GET(request: NextRequest) {
+  const perfil = await getAdminColegio(request)
+  if (!perfil) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const admin = createAdminClient()
+  const { data: gruposRaw } = await admin
+    .from('grupos')
+    .select('id, nombre, activo, catequista_id')
+    .eq('colegio_id', perfil.colegio_id)
+    .eq('activo', true)
+    .order('nombre')
+
+  const catIds = [...new Set((gruposRaw ?? []).filter((g: any) => g.catequista_id).map((g: any) => g.catequista_id))]
+  const { data: cats } = catIds.length > 0
+    ? await admin.from('perfiles').select('id, nombre, apellido, avatar_id').in('id', catIds)
+    : { data: [] as any[] }
+  const catMap = new Map((cats ?? []).map((c: any) => [c.id, c]))
+
+  const grupoIds = (gruposRaw ?? []).map((g: any) => g.id)
+  const { data: gaRows } = grupoIds.length > 0
+    ? await admin.from('grupo_alumnos').select('alumno_id, grupo_id').in('grupo_id', grupoIds).eq('activo', true)
+    : { data: [] as any[] }
+
+  const gaByGrupo: Record<string, { alumno_id: string }[]> = {}
+  for (const r of (gaRows ?? []) as any[]) {
+    if (!gaByGrupo[r.grupo_id]) gaByGrupo[r.grupo_id] = []
+    gaByGrupo[r.grupo_id].push({ alumno_id: r.alumno_id })
+  }
+
+  const grupos = (gruposRaw ?? []).map((g: any) => ({
+    ...g,
+    catequista: g.catequista_id ? (catMap.get(g.catequista_id) ?? null) : null,
+    grupo_alumnos: gaByGrupo[g.id] ?? [],
+  }))
+
+  return NextResponse.json({ grupos })
+}
+
 export async function POST(request: NextRequest) {
   const perfil = await getAdminColegio(request)
   if (!perfil) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })

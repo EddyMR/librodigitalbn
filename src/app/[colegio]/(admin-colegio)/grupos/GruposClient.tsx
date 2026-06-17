@@ -74,6 +74,14 @@ export default function GruposClient({
   useEffect(() => { setAlumnos(initialAlumnos) }, [initialAlumnos])
   useEffect(() => { setLibroCountMap(initialLibroCountMap) }, [initialLibroCountMap])
 
+  // Fetch fresh grupos on mount regardless of SSR data
+  useEffect(() => {
+    fetch('/api/colegio/grupos')
+      .then(r => r.json())
+      .then(data => { if (data.grupos) setGrupos(data.grupos) })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     const onFocus = () => router.refresh()
     window.addEventListener('focus', onFocus)
