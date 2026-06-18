@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Trash2, ChevronDown, ChevronUp, Upload, BookOpen, Users, Check, Camera, Mic, ListChecks, X, Film, Link } from 'lucide-react'
 import { Modal, Toast, Confirm } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -30,6 +30,13 @@ interface Props {
 export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }: Props) {
   const [activeTab, setActiveTab] = useState<'contenido' | 'asignaciones'>('contenido')
   const [bloques, setBloques] = useState(libro.bloques)
+
+  useEffect(() => {
+    fetch(`/api/admin/libros/${libroId}`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data.bloques)) setBloques(data.bloques) })
+      .catch(() => {})
+  }, [libroId])
   const [grupos, setGrupos] = useState(gruposInit)
   const [expandedBloque, setExpandedBloque] = useState<string | null>(null)
   const [showBloqueModal, setShowBloqueModal] = useState(false)

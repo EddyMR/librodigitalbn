@@ -104,11 +104,15 @@ export async function PUT(request: NextRequest) {
 
   const admin = createAdminClient()
   for (let i = 0; i < hojaIds.length; i++) {
-    const { error } = await admin
+    const { data, error } = await admin
       .from('hojas')
       .update({ orden: i + 1 })
       .eq('id', hojaIds[i])
+      .select('id')
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!data || data.length === 0) {
+      return NextResponse.json({ error: `No se pudo actualizar la hoja ${i + 1}` }, { status: 500 })
+    }
   }
   return NextResponse.json({ ok: true })
 }
