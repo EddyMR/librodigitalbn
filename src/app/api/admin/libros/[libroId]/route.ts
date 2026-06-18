@@ -26,7 +26,7 @@ export async function GET(
   const { data: hojasData } = bloqueIds.length > 0
     ? await admin
         .from('hojas')
-        .select('id, titulo, tipo, imagen_url, orden, bloque_id')
+        .select('id, titulo, tipo, imagen_url, orden, bloque_id, config')
         .in('bloque_id', bloqueIds)
         .eq('activo', true)
         .order('orden')

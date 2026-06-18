@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, ChevronDown, ChevronUp, Upload, BookOpen, Users, Check, Camera, Mic, ListChecks, X, Film, Link } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Upload, BookOpen, Users, Check, Camera, Mic, ListChecks, X, Film, Link, Pencil } from 'lucide-react'
 import { Modal, Toast, Confirm } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
 
 type TipoHoja = 'lectura' | 'escritura_libre' | 'escritura_imagen' | 'foto' | 'audio' | 'cuestionario' | 'multimedia'
 
-interface Hoja { id: string; titulo?: string; tipo: TipoHoja; imagen_url: string; orden: number }
+interface HojaConfig { preguntas?: string[]; audio_url?: string; video_url?: string; video_tipo?: string }
+interface Hoja { id: string; titulo?: string; tipo: TipoHoja; imagen_url: string; orden: number; config?: HojaConfig }
 interface Bloque { id: string; titulo: string; descripcion?: string; orden: number; activo: boolean; hojas: Hoja[] }
 interface Libro { id: string; titulo: string; bloques: Bloque[] }
 
@@ -58,6 +59,17 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'bloque' | 'hoja'; id: string; nombre: string } | null>(null)
   const [previewHoja, setPreviewHoja] = useState<Hoja | null>(null)
   const [togglingGrupo, setTogglingGrupo] = useState<string | null>(null)
+  const [editingHoja, setEditingHoja] = useState<{ hoja: Hoja; bloqueId: string } | null>(null)
+  const [editForm, setEditForm] = useState({ titulo: '', tipo: 'lectura' as TipoHoja })
+  const [editPreguntas, setEditPreguntas] = useState<string[]>([])
+  const [editNuevaPregunta, setEditNuevaPregunta] = useState('')
+  const [editImageFile, setEditImageFile] = useState<File | null>(null)
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null)
+  const [editMultimediaAudioFile, setEditMultimediaAudioFile] = useState<File | null>(null)
+  const [editMultimediaVideoFile, setEditMultimediaVideoFile] = useState<File | null>(null)
+  const [editMultimediaVideoUrl, setEditMultimediaVideoUrl] = useState('')
+  const [editMultimediaVideoTipo, setEditMultimediaVideoTipo] = useState<'url' | 'upload'>('url')
+  const [editSaving, setEditSaving] = useState(false)
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -66,6 +78,110 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     const reader = new FileReader()
     reader.onload = ev => setImagePreview(ev.target?.result as string)
     reader.readAsDataURL(file)
+  }
+
+  function handleEditImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setEditImageFile(file)
+    const reader = new FileReader()
+    reader.onload = ev => setEditImagePreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  function openEdit(hoja: Hoja, bloqueId: string) {
+    setEditingHoja({ hoja, bloqueId })
+    setEditForm({ titulo: hoja.titulo ?? '', tipo: hoja.tipo })
+    setEditPreguntas(hoja.config?.preguntas ?? [])
+    setEditNuevaPregunta('')
+    setEditImageFile(null)
+    setEditImagePreview(null)
+    setEditMultimediaAudioFile(null)
+    setEditMultimediaVideoFile(null)
+    setEditMultimediaVideoUrl(hoja.config?.video_url ?? '')
+    setEditMultimediaVideoTipo(hoja.config?.video_tipo === 'upload' ? 'upload' : 'url')
+  }
+
+  function closeEdit() {
+    setEditingHoja(null)
+    setEditImageFile(null)
+    setEditImagePreview(null)
+    setEditPreguntas([])
+    setEditNuevaPregunta('')
+    setEditMultimediaAudioFile(null)
+    setEditMultimediaVideoFile(null)
+    setEditMultimediaVideoUrl('')
+    setEditMultimediaVideoTipo('url')
+  }
+
+  async function handleSaveEdit() {
+    if (!editingHoja) return
+    if (editForm.tipo === 'cuestionario' && editPreguntas.length === 0) {
+      setToast({ msg: 'Agrega al menos una pregunta', type: 'error' })
+      return
+    }
+    setEditSaving(true)
+    try {
+      const { hoja, bloqueId } = editingHoja
+      const fd = new FormData()
+      fd.append('titulo', editForm.titulo.trim())
+      fd.append('tipo', editForm.tipo)
+      fd.append('libro_id', libroId)
+      fd.append('bloque_id', bloqueId)
+
+      if (editImageFile) fd.append('file', editImageFile)
+
+      const config: Record<string, unknown> = {}
+      if (editForm.tipo === 'cuestionario') {
+        config.preguntas = editPreguntas
+      } else if (editForm.tipo === 'multimedia') {
+        // Keep existing audio URL if no new file uploaded
+        if (editMultimediaAudioFile) {
+          fd.append('audio_file', editMultimediaAudioFile)
+        } else if (hoja.config?.audio_url) {
+          config.audio_url = hoja.config.audio_url
+        }
+        // Video: new file, URL, or keep existing uploaded video
+        if (editMultimediaVideoTipo === 'upload' && editMultimediaVideoFile) {
+          fd.append('video_file', editMultimediaVideoFile)
+        } else if (editMultimediaVideoTipo === 'url' && editMultimediaVideoUrl.trim()) {
+          fd.append('video_url', editMultimediaVideoUrl.trim())
+        } else if (
+          editMultimediaVideoTipo === 'upload' &&
+          !editMultimediaVideoFile &&
+          hoja.config?.video_tipo === 'upload' &&
+          hoja.config?.video_url
+        ) {
+          config.video_url = hoja.config.video_url
+          config.video_tipo = 'upload'
+        }
+      }
+      if (Object.keys(config).length > 0) fd.append('config', JSON.stringify(config))
+
+      const res = await fetch(`/api/admin/hojas/${hoja.id}`, { method: 'PATCH', body: fd })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setToast({ msg: data.error ?? 'Error al guardar', type: 'error' })
+        return
+      }
+
+      setBloques(prev => prev.map(b =>
+        b.id !== bloqueId ? b : {
+          ...b,
+          hojas: b.hojas.map(h => h.id === hoja.id ? {
+            ...h,
+            titulo: editForm.titulo.trim() || undefined,
+            tipo: editForm.tipo,
+            imagen_url: data.hoja?.imagen_url ?? h.imagen_url,
+            config: data.hoja?.config ?? undefined,
+          } : h),
+        }
+      ))
+      closeEdit()
+      setToast({ msg: 'Hoja actualizada', type: 'success' })
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   async function handleCreateBloque() {
@@ -512,6 +628,236 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
         </Modal>
       )}
 
+      {/* Edit hoja modal */}
+      {editingHoja && (
+        <Modal open onClose={closeEdit} title="Editar hoja" size="lg">
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700">Título (opcional)</label>
+              <input
+                className="input"
+                placeholder="Nombre de la hoja"
+                value={editForm.titulo}
+                onChange={e => setEditForm(p => ({ ...p, titulo: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700">Tipo de actividad</label>
+              <div className="grid grid-cols-1 gap-2">
+                {(Object.entries(tipoLabels) as [TipoHoja, string][]).map(([tipo, label]) => (
+                  <button
+                    key={tipo}
+                    type="button"
+                    onClick={() => setEditForm(p => ({ ...p, tipo }))}
+                    className={cn(
+                      'p-3 rounded-xl border-2 text-left transition-all',
+                      editForm.tipo === tipo ? 'border-brand-500 bg-brand-50' : 'border-slate-200 hover:border-brand-200'
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className={cn('flex-shrink-0', editForm.tipo === tipo ? 'text-brand-600' : 'text-slate-400')}>
+                        {tipoMeta[tipo].icon}
+                      </span>
+                      <div>
+                        <p className={cn('text-sm font-semibold', editForm.tipo === tipo ? 'text-brand-800' : 'text-slate-700')}>{label}</p>
+                        <p className="text-xs text-slate-400">{tipoMeta[tipo].desc}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {editForm.tipo === 'cuestionario' && (
+              <div className="space-y-2 bg-slate-50 rounded-xl p-3 border border-slate-200">
+                <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <ListChecks className="w-4 h-4 text-brand-500" />
+                  Preguntas del cuestionario
+                </p>
+                {editPreguntas.length > 0 && (
+                  <div className="space-y-1.5">
+                    {editPreguntas.map((p, i) => (
+                      <div key={i} className="flex items-start gap-2 bg-white rounded-lg px-3 py-2 border border-slate-200">
+                        <span className="text-xs font-bold text-brand-600 mt-0.5 w-4 flex-shrink-0">{i + 1}.</span>
+                        <p className="flex-1 text-sm text-slate-800">{p}</p>
+                        <button
+                          type="button"
+                          onClick={() => setEditPreguntas(prev => prev.filter((_, idx) => idx !== i))}
+                          className="text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    className="input flex-1 text-sm"
+                    placeholder="Escribe una pregunta..."
+                    value={editNuevaPregunta}
+                    onChange={e => setEditNuevaPregunta(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && editNuevaPregunta.trim()) {
+                        setEditPreguntas(prev => [...prev, editNuevaPregunta.trim()])
+                        setEditNuevaPregunta('')
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={!editNuevaPregunta.trim()}
+                    onClick={() => { setEditPreguntas(prev => [...prev, editNuevaPregunta.trim()]); setEditNuevaPregunta('') }}
+                    className="btn-primary px-3 py-2 text-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                {editPreguntas.length === 0 && (
+                  <p className="text-xs text-slate-400">Agrega al menos una pregunta</p>
+                )}
+              </div>
+            )}
+
+            {editForm.tipo === 'multimedia' && (
+              <div className="space-y-3 bg-slate-50 rounded-xl p-3 border border-slate-200">
+                <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Film className="w-4 h-4 text-brand-500" />
+                  Contenido multimedia <span className="font-normal text-slate-400">(opcional)</span>
+                </p>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                    <Mic className="w-3.5 h-3.5" /> Audio
+                  </label>
+                  {editMultimediaAudioFile ? (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200">
+                      <Mic className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                      <span className="text-xs text-slate-700 flex-1 truncate">{editMultimediaAudioFile.name}</span>
+                      <button type="button" onClick={() => setEditMultimediaAudioFile(null)} className="text-slate-400 hover:text-red-500 flex-shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : editingHoja.hoja.config?.audio_url ? (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200">
+                      <Mic className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      <span className="text-xs text-slate-500 flex-1">Audio actual guardado</span>
+                      <label className="text-xs text-brand-600 hover:text-brand-700 cursor-pointer font-medium">
+                        Cambiar
+                        <input type="file" accept="audio/*" className="hidden" onChange={e => setEditMultimediaAudioFile(e.target.files?.[0] ?? null)} />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-colors">
+                      <Upload className="w-4 h-4 text-slate-400" />
+                      <span className="text-xs text-slate-500">Subir archivo de audio (MP3, WAV, M4A…)</span>
+                      <input type="file" accept="audio/*" className="hidden" onChange={e => setEditMultimediaAudioFile(e.target.files?.[0] ?? null)} />
+                    </label>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                    <Film className="w-3.5 h-3.5" /> Video
+                  </label>
+                  <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                    {(['url', 'upload'] as const).map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setEditMultimediaVideoTipo(t)}
+                        className={cn(
+                          'flex-1 py-1.5 text-xs font-medium transition-colors',
+                          editMultimediaVideoTipo === t ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+                        )}
+                      >
+                        {t === 'url' ? '🔗 URL / YouTube' : '📁 Subir video'}
+                      </button>
+                    ))}
+                  </div>
+                  {editMultimediaVideoTipo === 'url' ? (
+                    <input
+                      className="input text-sm"
+                      placeholder="https://youtube.com/watch?v=... o URL directa de video"
+                      value={editMultimediaVideoUrl}
+                      onChange={e => setEditMultimediaVideoUrl(e.target.value)}
+                    />
+                  ) : editMultimediaVideoFile ? (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200">
+                      <Film className="w-4 h-4 text-brand-500 flex-shrink-0" />
+                      <span className="text-xs text-slate-700 flex-1 truncate">{editMultimediaVideoFile.name}</span>
+                      <button type="button" onClick={() => setEditMultimediaVideoFile(null)} className="text-slate-400 hover:text-red-500 flex-shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (editingHoja.hoja.config?.video_tipo === 'upload' && editingHoja.hoja.config?.video_url) ? (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200">
+                      <Film className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      <span className="text-xs text-slate-500 flex-1">Video actual guardado</span>
+                      <label className="text-xs text-brand-600 hover:text-brand-700 cursor-pointer font-medium">
+                        Cambiar
+                        <input type="file" accept="video/*" className="hidden" onChange={e => setEditMultimediaVideoFile(e.target.files?.[0] ?? null)} />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-brand-400 hover:bg-brand-50/50 transition-colors">
+                      <Upload className="w-4 h-4 text-slate-400" />
+                      <span className="text-xs text-slate-500">Subir archivo de video (MP4, WebM…)</span>
+                      <input type="file" accept="video/*" className="hidden" onChange={e => setEditMultimediaVideoFile(e.target.files?.[0] ?? null)} />
+                    </label>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Imagen de la hoja</label>
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0">
+                  <Image
+                    src={editImagePreview ?? editingHoja.hoja.imagen_url}
+                    alt="Hoja"
+                    width={48}
+                    height={80}
+                    className="rounded-lg object-cover"
+                  />
+                </div>
+                <div className="flex-1">
+                  {editImageFile ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-600 truncate flex-1">{editImageFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => { setEditImageFile(null); setEditImagePreview(null) }}
+                        className="text-slate-400 hover:text-red-500 flex-shrink-0"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-brand-400 hover:bg-brand-50/50 transition-colors">
+                      <Upload className="w-4 h-4 text-slate-400" />
+                      <span className="text-xs text-slate-500">Cambiar imagen (opcional)</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleEditImageChange} />
+                    </label>
+                  )}
+                  <p className="text-xs text-slate-400 mt-1">
+                    {editImageFile ? 'Nueva imagen seleccionada' : 'Se mantendrá la imagen actual si no cambias'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSaveEdit}
+              disabled={editSaving}
+              className="btn-primary w-full"
+            >
+              {editSaving ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {/* Tabs */}
       <div className="flex rounded-xl bg-slate-100 p-1 mb-6">
         <button
@@ -605,6 +951,13 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
                         <p className="text-sm font-medium text-slate-800 truncate">{hoja.titulo ?? `Hoja ${hojaIdx + 1}`}</p>
                         <span className="text-xs text-slate-400">{tipoLabels[hoja.tipo]}</span>
                       </div>
+                      <button
+                        onClick={() => openEdit(hoja, bloque.id)}
+                        className="p-1.5 text-slate-300 hover:text-brand-500 transition-colors"
+                        title="Editar hoja"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => setDeleteConfirm({ type: 'hoja', id: hoja.id, nombre: hoja.titulo ?? 'esta hoja' })}
                         className="p-1.5 text-slate-300 hover:text-red-500"
