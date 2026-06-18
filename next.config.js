@@ -6,7 +6,7 @@ const withPWA = require('next-pwa')({
   buildExcludes: [/app-build-manifest\.json$/],
   runtimeCaching: [
     {
-      urlPattern: ({ url }: { url: URL }) =>
+      urlPattern: ({ url }) =>
         url.pathname !== '/' &&
         !url.pathname.startsWith('/_next/') &&
         !url.pathname.startsWith('/api/') &&
