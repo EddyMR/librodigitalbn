@@ -98,15 +98,17 @@ export async function PUT(request: NextRequest) {
   if (!checkAdmin(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { bloqueId, hojaIds } = await request.json()
-  if (!bloqueId || !Array.isArray(hojaIds)) {
+  if (!bloqueId || !Array.isArray(hojaIds) || hojaIds.length === 0) {
     return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
   }
 
   const admin = createAdminClient()
-  await Promise.all(
-    (hojaIds as string[]).map((id, idx) =>
-      admin.from('hojas').update({ orden: idx + 1 }).eq('id', id).eq('bloque_id', bloqueId)
-    )
-  )
+  for (let i = 0; i < hojaIds.length; i++) {
+    const { error } = await admin
+      .from('hojas')
+      .update({ orden: i + 1 })
+      .eq('id', hojaIds[i])
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

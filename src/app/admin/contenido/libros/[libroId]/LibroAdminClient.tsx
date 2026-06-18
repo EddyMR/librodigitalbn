@@ -157,24 +157,36 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
   }
 
   async function handleMoveHoja(bloqueId: string, hojaId: string, dir: 'up' | 'down') {
-    let newHojaIds: string[] = []
-    setBloques(prev => prev.map(b => {
-      if (b.id !== bloqueId) return b
-      const hojas = [...b.hojas]
-      const idx = hojas.findIndex(h => h.id === hojaId)
-      if (dir === 'up' && idx === 0) return b
-      if (dir === 'down' && idx === hojas.length - 1) return b
-      const swap = dir === 'up' ? idx - 1 : idx + 1
-      ;[hojas[idx], hojas[swap]] = [hojas[swap], hojas[idx]]
-      newHojaIds = hojas.map(h => h.id)
-      return { ...b, hojas: hojas.map((h, i) => ({ ...h, orden: i + 1 })) }
-    }))
-    if (newHojaIds.length === 0) return
-    await fetch('/api/admin/hojas', {
+    // Calculate new order before touching state
+    const bloque = bloques.find(b => b.id === bloqueId)
+    if (!bloque) return
+    const hojas = [...bloque.hojas]
+    const idx = hojas.findIndex(h => h.id === hojaId)
+    if (dir === 'up' && idx === 0) return
+    if (dir === 'down' && idx === hojas.length - 1) return
+    const swap = dir === 'up' ? idx - 1 : idx + 1
+    ;[hojas[idx], hojas[swap]] = [hojas[swap], hojas[idx]]
+    const newHojaIds = hojas.map(h => h.id)
+
+    // Optimistic UI update
+    setBloques(prev => prev.map(b =>
+      b.id !== bloqueId ? b : { ...b, hojas: hojas.map((h, i) => ({ ...h, orden: i + 1 })) }
+    ))
+
+    // Persist
+    const res = await fetch('/api/admin/hojas', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bloqueId, hojaIds: newHojaIds }),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setToast({ msg: data.error ?? 'Error al guardar orden', type: 'error' })
+      // Revert
+      setBloques(prev => prev.map(b =>
+        b.id !== bloqueId ? b : { ...b, hojas: bloque.hojas }
+      ))
+    }
   }
 
   async function handleDeleteHoja(bloqueId: string, hojaId: string) {
