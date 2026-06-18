@@ -156,6 +156,27 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     setDeleteConfirm(null)
   }
 
+  async function handleMoveHoja(bloqueId: string, hojaId: string, dir: 'up' | 'down') {
+    let newHojaIds: string[] = []
+    setBloques(prev => prev.map(b => {
+      if (b.id !== bloqueId) return b
+      const hojas = [...b.hojas]
+      const idx = hojas.findIndex(h => h.id === hojaId)
+      if (dir === 'up' && idx === 0) return b
+      if (dir === 'down' && idx === hojas.length - 1) return b
+      const swap = dir === 'up' ? idx - 1 : idx + 1
+      ;[hojas[idx], hojas[swap]] = [hojas[swap], hojas[idx]]
+      newHojaIds = hojas.map(h => h.id)
+      return { ...b, hojas: hojas.map((h, i) => ({ ...h, orden: i + 1 })) }
+    }))
+    if (newHojaIds.length === 0) return
+    await fetch('/api/admin/hojas', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bloqueId, hojaIds: newHojaIds }),
+    })
+  }
+
   async function handleDeleteHoja(bloqueId: string, hojaId: string) {
     const res = await fetch('/api/admin/hojas', {
       method: 'PATCH',
@@ -536,15 +557,33 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
 
               {expandedBloque === bloque.id && (
                 <div className="border-t border-slate-100">
-                  {bloque.hojas.map(hoja => (
-                    <div key={hoja.id} className="flex items-center gap-3 px-4 py-3 border-b border-slate-50 hover:bg-slate-50">
+                  {bloque.hojas.map((hoja, hojaIdx) => (
+                    <div key={hoja.id} className="flex items-center gap-2 px-3 py-3 border-b border-slate-50 hover:bg-slate-50">
+                      <div className="flex flex-col flex-shrink-0">
+                        <button
+                          onClick={() => handleMoveHoja(bloque.id, hoja.id, 'up')}
+                          disabled={hojaIdx === 0}
+                          className="p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                          title="Subir"
+                        >
+                          <ChevronUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveHoja(bloque.id, hoja.id, 'down')}
+                          disabled={hojaIdx === bloque.hojas.length - 1}
+                          className="p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                          title="Bajar"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
                       {hoja.imagen_url && (
                         <button onClick={() => setPreviewHoja(hoja)} className="flex-shrink-0">
                           <Image src={hoja.imagen_url} alt="Hoja" width={32} height={48} className="rounded-lg object-cover hover:ring-2 hover:ring-brand-400 transition-all" />
                         </button>
                       )}
                       <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setPreviewHoja(hoja)}>
-                        <p className="text-sm font-medium text-slate-800 truncate">{hoja.titulo ?? 'Sin título'}</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{hoja.titulo ?? `Hoja ${hojaIdx + 1}`}</p>
                         <span className="text-xs text-slate-400">{tipoLabels[hoja.tipo]}</span>
                       </div>
                       <button

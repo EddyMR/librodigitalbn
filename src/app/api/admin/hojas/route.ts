@@ -93,3 +93,20 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
+
+export async function PUT(request: NextRequest) {
+  if (!checkAdmin(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { bloqueId, hojaIds } = await request.json()
+  if (!bloqueId || !Array.isArray(hojaIds)) {
+    return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+  await Promise.all(
+    (hojaIds as string[]).map((id, idx) =>
+      admin.from('hojas').update({ orden: idx + 1 }).eq('id', id).eq('bloque_id', bloqueId)
+    )
+  )
+  return NextResponse.json({ ok: true })
+}
