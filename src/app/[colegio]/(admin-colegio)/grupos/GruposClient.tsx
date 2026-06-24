@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Users, BookOpen, Plus, Trash2, Pencil, Search,
   X, Check, UserMinus, UserPlus, ChevronRight,
-  AlertCircle, UserX,
+  AlertCircle, UserX, Printer,
 } from 'lucide-react'
 import { Modal, Confirm, Toast } from '@/components/ui'
 import { nombreCompleto, avatarUrl, cn } from '@/lib/utils'
@@ -96,6 +96,9 @@ export default function GruposClient({
   const [deleteConfirm, setDeleteConfirm] = useState<Grupo | null>(null)
   const [deleteError, setDeleteError] = useState<{ msg: string; grupo: Grupo } | null>(null)
   const [loadingLibros, setLoadingLibros] = useState(false)
+  const [resetConfirm, setResetConfirm] = useState<Grupo | null>(null)
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetResult, setResetResult] = useState<{ grupoNombre: string; creds: { nombre: string; apellido: string; username: string; password: string }[] } | null>(null)
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
@@ -175,6 +178,16 @@ export default function GruposClient({
       showToast('Error al desactivar', 'error')
     }
     setDeleteError(null)
+  }
+
+  async function handleResetPasswords(grupo: Grupo) {
+    setResetLoading(true)
+    setResetConfirm(null)
+    const res = await fetch(`/api/colegio/grupos/${grupo.id}/reset-passwords`, { method: 'POST' })
+    const data = await res.json()
+    setResetLoading(false)
+    if (!res.ok) { showToast(data.error ?? 'Error al resetear contraseñas', 'error'); return }
+    setResetResult({ grupoNombre: data.grupoNombre, creds: data.creds })
   }
 
   // ── Alumnos management ───────────────────────────────────────
@@ -310,6 +323,27 @@ export default function GruposClient({
         />
       )}
 
+      {/* Reset passwords confirm */}
+      {resetConfirm && (
+        <Confirm
+          open
+          title="¿Resetear contraseñas?"
+          message={`Se generarán nuevas contraseñas para todos los alumnos de "${resetConfirm.nombre}". Las contraseñas actuales dejarán de funcionar.`}
+          confirmLabel={resetLoading ? 'Procesando...' : 'Resetear y ver'}
+          onConfirm={() => handleResetPasswords(resetConfirm)}
+          onCancel={() => setResetConfirm(null)}
+        />
+      )}
+
+      {/* Print passwords result */}
+      {resetResult && (
+        <PrintPasswordsModal
+          grupoNombre={resetResult.grupoNombre}
+          creds={resetResult.creds}
+          onClose={() => setResetResult(null)}
+        />
+      )}
+
       {/* Main content */}
       <div className="px-4 pt-4 space-y-3 pb-6">
         {/* New group button */}
@@ -426,6 +460,13 @@ export default function GruposClient({
                     <BookOpen className="w-3.5 h-3.5" />
                     Libros
                   </button>
+                  <button
+                    onClick={() => setResetConfirm(grupo)}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors border border-slate-200"
+                    title="Imprimir contraseñas"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -433,6 +474,93 @@ export default function GruposClient({
         })}
       </div>
     </>
+  )
+}
+
+// ── PrintPasswordsModal ───────────────────────────────────────
+function PrintPasswordsModal({
+  grupoNombre,
+  creds,
+  onClose,
+}: {
+  grupoNombre: string
+  creds: { nombre: string; apellido: string; username: string; password: string }[]
+  onClose: () => void
+}) {
+  function handlePrint() {
+    const fecha = new Date().toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const rows = creds
+      .map(c => `<tr><td>${c.nombre}</td><td>${c.apellido}</td><td>${c.username}</td><td><strong>${c.password}</strong></td></tr>`)
+      .join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contraseñas - ${grupoNombre}</title>
+<style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{font-size:16px;margin:0 0 2px}p{font-size:12px;color:#666;margin:0 0 16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:7px 10px;font-size:13px;text-align:left}th{background:#f5f5f5;font-weight:700}</style>
+</head><body>
+<h1>Contraseñas del grupo: ${grupoNombre}</h1>
+<p>Generadas el ${fecha}</p>
+<table><thead><tr><th>Nombre</th><th>Apellido</th><th>Usuario</th><th>Contraseña</th></tr></thead><tbody>${rows}</tbody></table>
+</body></html>`
+    const w = window.open('', '_blank')
+    if (w) { w.document.write(html); w.document.close(); w.focus(); w.print() }
+  }
+
+  function handleDownloadCSV() {
+    const lines = [
+      '"Nombre","Apellido","Usuario","Contraseña"',
+      ...creds.map(c => `"${c.nombre}","${c.apellido}","${c.username}","${c.password}"`),
+    ]
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `contrasenas-${grupoNombre.toLowerCase().replace(/\s+/g, '-')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Contraseñas — ${grupoNombre}`} size="lg">
+      <div className="space-y-4">
+        {creds.length === 0 ? (
+          <p className="text-sm text-slate-500 text-center py-4">Este grupo no tiene alumnos.</p>
+        ) : (
+          <>
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              Las contraseñas anteriores ya no funcionan. Entrega esta lista a los alumnos.
+            </p>
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-700">Nombre</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-700">Apellido</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-700">Usuario</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-700">Contraseña</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {creds.map((c, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-3 py-2">{c.nombre}</td>
+                      <td className="px-3 py-2">{c.apellido}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{c.username}</td>
+                      <td className="px-3 py-2 font-mono text-xs font-bold">{c.password}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleDownloadCSV} className="btn-ghost flex-1 flex items-center justify-center gap-2">
+                Descargar CSV
+              </button>
+              <button onClick={handlePrint} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                <Printer className="w-4 h-4" /> Imprimir
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
   )
 }
 
