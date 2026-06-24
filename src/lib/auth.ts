@@ -1,9 +1,18 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createServerSupabaseClient, createAdminClient } from './supabase'
 import { Perfil, RolUsuario } from '@/types'
 import crypto from 'crypto'
+
+async function getAppUrl(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
+  const h = await headers()
+  const host = h.get('x-forwarded-host') || h.get('host') || 'localhost:3000'
+  const proto = h.get('x-forwarded-proto') || (process.env.NODE_ENV === 'production' ? 'https' : 'http')
+  return `${proto}://${host}`
+}
 
 // ── Get current user profile ──────────────────────────────────
 export async function getSession() {
@@ -80,13 +89,17 @@ export async function loginQR(token: string) {
   // Mark as used
   await admin.from('qr_tokens').update({ usado: true }).eq('id', qr.id)
 
-  // Generate a magic sign-in for the alumno (exchange for session)
+  const colegioCodigo = qr.alumno.colegio.codigo
+  const appUrl = await getAppUrl()
+  const redirectTo = `${appUrl}/auth/callback?next=/${colegioCodigo}/inicio`
+
   const { data: link } = await admin.auth.admin.generateLink({
     type: 'magiclink',
-    email: `${qr.alumno.username}@${qr.alumno.colegio.codigo}.catequesis`,
+    email: `${qr.alumno.username}@${colegioCodigo}.catequesis`,
+    options: { redirectTo },
   })
 
-  return { ok: true, magicLink: link?.properties?.action_link, colegioCodigo: qr.alumno.colegio.codigo }
+  return { ok: true, magicLink: link?.properties?.action_link, colegioCodigo }
 }
 
 // ── Logout ────────────────────────────────────────────────────
@@ -172,11 +185,13 @@ export async function generarQRToken(alumnoId: string) {
   const { error } = await admin.from('qr_tokens').insert({
     alumno_id: alumnoId,
     token,
-    expira_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
+    expira_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
   })
 
   if (error) return { error: error.message }
-  return { token, url: `${process.env.NEXT_PUBLIC_APP_URL}/auth/qr/${token}` }
+
+  const appUrl = await getAppUrl()
+  return { token, url: `${appUrl}/auth/qr/${token}` }
 }
 
 // ── Create catequista ─────────────────────────────────────────
