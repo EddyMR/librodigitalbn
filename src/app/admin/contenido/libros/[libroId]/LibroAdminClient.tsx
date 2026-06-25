@@ -6,7 +6,7 @@ import { Modal, Toast, Confirm } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
 
-async function resizeImage(file: File, maxDim = 1400): Promise<Blob> {
+async function resizeImage(file: File, maxDim = 2000, quality = 0.92): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new window.Image()
     img.onload = () => {
@@ -15,7 +15,7 @@ async function resizeImage(file: File, maxDim = 1400): Promise<Blob> {
       canvas.width = Math.round(img.width * scale)
       canvas.height = Math.round(img.height * scale)
       canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', 0.85)
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', quality)
     }
     img.onerror = reject
     img.src = URL.createObjectURL(file)
