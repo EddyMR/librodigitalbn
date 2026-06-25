@@ -6,6 +6,22 @@ import { Modal, Toast, Confirm } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
 
+async function resizeImage(file: File, maxDim = 1400): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', 0.85)
+    }
+    img.onerror = reject
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 type TipoHoja = 'lectura' | 'escritura_libre' | 'escritura_imagen' | 'foto' | 'audio' | 'cuestionario' | 'multimedia'
 
 interface HojaConfig { preguntas?: string[]; audio_url?: string; video_url?: string; video_tipo?: string }
@@ -129,7 +145,10 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
       fd.append('libro_id', libroId)
       fd.append('bloque_id', bloqueId)
 
-      if (editImageFile) fd.append('file', editImageFile)
+      if (editImageFile) {
+        const resized = await resizeImage(editImageFile)
+        fd.append('file', resized, 'hoja.jpg')
+      }
 
       const config: Record<string, unknown> = {}
       if (editForm.tipo === 'cuestionario') {
@@ -215,55 +234,60 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     }
     setUploading(true)
 
-    const bloque = bloques.find(b => b.id === bloqueId)
-    const nextOrden = bloque && bloque.hojas.length > 0
-      ? Math.max(...bloque.hojas.map(h => h.orden)) + 1
-      : 1
+    try {
+      const bloque = bloques.find(b => b.id === bloqueId)
+      const nextOrden = bloque && bloque.hojas.length > 0
+        ? Math.max(...bloque.hojas.map(h => h.orden)) + 1
+        : 1
 
-    const formData = new FormData()
-    formData.append('file', imageFile)
-    formData.append('bloque_id', bloqueId)
-    formData.append('libro_id', libro.id)
-    formData.append('titulo', newHojaData.titulo.trim())
-    formData.append('tipo', newHojaData.tipo)
-    formData.append('orden', String(nextOrden))
-    if (newHojaData.tipo === 'cuestionario') {
-      formData.append('config', JSON.stringify({ preguntas }))
-    }
+      const resized = await resizeImage(imageFile)
 
-    if (newHojaData.tipo === 'multimedia') {
-      if (multimediaAudioFile) formData.append('audio_file', multimediaAudioFile)
-      if (multimediaVideoTipo === 'upload' && multimediaVideoFile) {
-        formData.append('video_file', multimediaVideoFile)
-      } else if (multimediaVideoTipo === 'url' && multimediaVideoUrl.trim()) {
-        formData.append('video_url', multimediaVideoUrl.trim())
+      const formData = new FormData()
+      formData.append('file', resized, 'hoja.jpg')
+      formData.append('bloque_id', bloqueId)
+      formData.append('libro_id', libro.id)
+      formData.append('titulo', newHojaData.titulo.trim())
+      formData.append('tipo', newHojaData.tipo)
+      formData.append('orden', String(nextOrden))
+      if (newHojaData.tipo === 'cuestionario') {
+        formData.append('config', JSON.stringify({ preguntas }))
       }
-    }
+      if (newHojaData.tipo === 'multimedia') {
+        if (multimediaAudioFile) formData.append('audio_file', multimediaAudioFile)
+        if (multimediaVideoTipo === 'upload' && multimediaVideoFile) {
+          formData.append('video_file', multimediaVideoFile)
+        } else if (multimediaVideoTipo === 'url' && multimediaVideoUrl.trim()) {
+          formData.append('video_url', multimediaVideoUrl.trim())
+        }
+      }
 
-    const res = await fetch('/api/admin/hojas', { method: 'POST', body: formData })
-    const data = await res.json()
+      const res = await fetch('/api/admin/hojas', { method: 'POST', body: formData })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setToast({ msg: err.error ?? `Error al subir (${res.status})`, type: 'error' })
+        return
+      }
+      const data = await res.json()
 
-    if (data.error) {
-      setToast({ msg: 'Error al crear hoja', type: 'error' })
+      setBloques(prev => prev.map(b =>
+        b.id === bloqueId ? { ...b, hojas: [...b.hojas, data.hoja as Hoja] } : b
+      ))
+      setNewHojaData({ titulo: '', tipo: 'lectura' })
+      setPreguntas([])
+      setNuevaPregunta('')
+      setMultimediaAudioFile(null)
+      setMultimediaVideoFile(null)
+      setMultimediaVideoUrl('')
+      setMultimediaVideoTipo('url')
+      setImageFile(null)
+      setImagePreview(null)
+      setShowHojaModal(null)
+      setToast({ msg: 'Hoja agregada', type: 'success' })
+    } catch {
+      setToast({ msg: 'Error al procesar la imagen. Prueba con otra.', type: 'error' })
+    } finally {
       setUploading(false)
-      return
     }
-
-    setBloques(prev => prev.map(b =>
-      b.id === bloqueId ? { ...b, hojas: [...b.hojas, data.hoja as Hoja] } : b
-    ))
-    setNewHojaData({ titulo: '', tipo: 'lectura' })
-    setPreguntas([])
-    setNuevaPregunta('')
-    setMultimediaAudioFile(null)
-    setMultimediaVideoFile(null)
-    setMultimediaVideoUrl('')
-    setMultimediaVideoTipo('url')
-    setImageFile(null)
-    setImagePreview(null)
-    setShowHojaModal(null)
-    setUploading(false)
-    setToast({ msg: 'Hoja agregada', type: 'success' })
   }
 
   async function handleDeleteBloque(id: string) {
