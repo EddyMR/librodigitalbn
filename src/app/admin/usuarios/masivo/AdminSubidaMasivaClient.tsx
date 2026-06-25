@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { crearAlumnosMasivo } from '@/lib/auth'
 import { Download, Users, CheckCircle2, AlertCircle, Loader2, Building2, Printer } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Modal } from '@/components/ui'
 
 interface Props {
   colegios: { id: string; nombre: string; codigo: string }[]
@@ -129,31 +130,43 @@ function descargarCSV(resultados: ResultadoAlumno[], colegioNombre: string) {
   URL.revokeObjectURL(url)
 }
 
-export default function AdminSubidaMasivaClient({ colegios, grupos }: Props) {
+export default function AdminSubidaMasivaClient({ colegios, grupos: _grupos }: Props) {
   const [colegioId, setColegioId] = useState('')
   const [grupoId, setGrupoId] = useState('')
   const [texto, setTexto] = useState('')
   const [cargando, setCargando] = useState(false)
   const [resultados, setResultados] = useState<ResultadoAlumno[] | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
-  const gruposDelColegio = useMemo(
-    () => grupos.filter(g => g.colegio_id === colegioId),
-    [grupos, colegioId]
-  )
+  // Dynamic grupo loading — avoids stale SSR data when new groups are created
+  const [gruposDelColegio, setGruposDelColegio] = useState<{ id: string; nombre: string }[]>([])
+  const [loadingGrupos, setLoadingGrupos] = useState(false)
 
-  const alumnos = useMemo(() => parsearLineas(texto), [texto])
+  useEffect(() => {
+    if (!colegioId) { setGruposDelColegio([]); setGrupoId(''); return }
+    setLoadingGrupos(true)
+    setGrupoId('')
+    fetch(`/api/admin/grupos?colegio_id=${colegioId}`)
+      .then(r => r.json())
+      .then(data => setGruposDelColegio(data.grupos ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingGrupos(false))
+  }, [colegioId])
+
+  const alumnos = parsearLineas(texto)
 
   const colegioSeleccionado = colegios.find(c => c.id === colegioId)
+  const grupoSeleccionado = gruposDelColegio.find(g => g.id === grupoId)
   const exitosos = resultados?.filter(r => !r.error).length ?? 0
   const conError = resultados?.filter(r => r.error).length ?? 0
 
   function handleColegioChange(id: string) {
     setColegioId(id)
-    setGrupoId('')
   }
 
   async function handleSubir() {
     if (alumnos.length === 0 || !grupoId || !colegioId) return
+    setConfirming(false)
     setCargando(true)
     const { results } = await crearAlumnosMasivo({ alumnos, grupoId, colegioId })
     setResultados(results)
@@ -273,7 +286,11 @@ export default function AdminSubidaMasivaClient({ colegios, grupos }: Props) {
         {colegioId && (
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">Grupo *</label>
-            {gruposDelColegio.length === 0 ? (
+            {loadingGrupos ? (
+              <div className="flex items-center gap-2 p-3 text-sm text-slate-500">
+                <Loader2 className="w-4 h-4 animate-spin" /> Cargando grupos...
+              </div>
+            ) : gruposDelColegio.length === 0 ? (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
                 Este colegio no tiene grupos activos.
               </div>
@@ -338,7 +355,7 @@ export default function AdminSubidaMasivaClient({ colegios, grupos }: Props) {
       )}
 
       <button
-        onClick={handleSubir}
+        onClick={() => setConfirming(true)}
         disabled={cargando || alumnos.length === 0 || !grupoId || !colegioId}
         className={cn(
           'w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all',
@@ -348,9 +365,47 @@ export default function AdminSubidaMasivaClient({ colegios, grupos }: Props) {
         {cargando ? (
           <><Loader2 className="w-4 h-4 animate-spin" /> Creando {alumnos.length} alumnos...</>
         ) : (
-          <><Users className="w-4 h-4" /> Crear {alumnos.length > 0 ? `${alumnos.length} ` : ''}alumno{alumnos.length !== 1 ? 's' : ''}</>
+          <><Users className="w-4 h-4" /> Revisar y crear {alumnos.length > 0 ? `${alumnos.length} ` : ''}alumno{alumnos.length !== 1 ? 's' : ''}</>
         )}
       </button>
+
+      {confirming && (
+        <Modal open onClose={() => setConfirming(false)} title="Confirmar creación" size="md">
+          <div className="space-y-4">
+            <div className="p-3 bg-slate-50 rounded-xl text-sm space-y-1">
+              <p><span className="text-slate-500">Colegio:</span> <span className="font-semibold text-slate-800">{colegioSeleccionado?.nombre}</span></p>
+              <p><span className="text-slate-500">Grupo:</span> <span className="font-semibold text-slate-800">{grupoSeleccionado?.nombre}</span></p>
+              <p><span className="text-slate-500">Alumnos a crear:</span> <span className="font-bold text-brand-700">{alumnos.length}</span></p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-600">
+                Lista de alumnos
+              </div>
+              <div className="divide-y divide-slate-50 max-h-56 overflow-y-auto">
+                {alumnos.map((a, i) => (
+                  <div key={i} className="px-3 py-2 flex gap-3 text-sm">
+                    <span className="text-slate-300 w-5 text-right flex-shrink-0 text-xs">{i + 1}</span>
+                    <span className="text-slate-800 font-medium">{a.nombre}</span>
+                    <span className="text-slate-500">{a.apellido}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              Se generarán usuarios y contraseñas automáticamente. Esta acción no se puede deshacer.
+            </p>
+
+            <div className="flex gap-2">
+              <button onClick={() => setConfirming(false)} className="btn-ghost flex-1">Cancelar</button>
+              <button onClick={handleSubir} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                <Users className="w-4 h-4" /> Confirmar y crear
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

@@ -5,6 +5,22 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Upload } from 'lucide-react'
 import Image from 'next/image'
 
+async function resizeImage(file: File, maxDim = 1400): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', 0.85)
+    }
+    img.onerror = reject
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 export default function NuevoLibroPage() {
   const [titulo, setTitulo] = useState('')
   const [descripcion, setDescripcion] = useState('')
@@ -30,29 +46,40 @@ export default function NuevoLibroPage() {
     let portada_url = null
 
     if (coverFile) {
-      const formData = new FormData()
-      formData.append('file', coverFile)
-      formData.append('bloque_id', 'portadas')
-      formData.append('libro_id', 'portadas')
-      formData.append('titulo', '')
-      formData.append('tipo', 'lectura')
-      formData.append('orden', '0')
-      formData.append('is_portada', 'true')
+      try {
+        const resized = await resizeImage(coverFile)
+        const formData = new FormData()
+        formData.append('file', resized, 'portada.jpg')
 
-      const uploadRes = await fetch('/api/admin/upload-portada', { method: 'POST', body: formData })
-      const uploadData = await uploadRes.json()
-      if (uploadData.error) { setError('Error al subir portada'); setLoading(false); return }
-      portada_url = uploadData.url
+        const uploadRes = await fetch('/api/admin/upload-portada', { method: 'POST', body: formData })
+        if (!uploadRes.ok) {
+          setError(`Error al subir portada (${uploadRes.status})`)
+          setLoading(false)
+          return
+        }
+        const uploadData = await uploadRes.json()
+        if (uploadData.error) { setError('Error al subir portada: ' + uploadData.error); setLoading(false); return }
+        portada_url = uploadData.url
+      } catch {
+        setError('Error al procesar la imagen. Prueba con otra imagen.')
+        setLoading(false)
+        return
+      }
     }
 
-    const res = await fetch('/api/admin/libros', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titulo: titulo.trim(), descripcion: descripcion.trim() || null, portada_url, orden: 0 }),
-    })
-    const data = await res.json()
-    if (data.error) { setError(data.error); setLoading(false); return }
-    router.push(`/admin/contenido/libros/${data.libro.id}`)
+    try {
+      const res = await fetch('/api/admin/libros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo: titulo.trim(), descripcion: descripcion.trim() || null, portada_url, orden: 0 }),
+      })
+      const data = await res.json()
+      if (data.error) { setError(data.error); setLoading(false); return }
+      router.push(`/admin/contenido/libros/${data.libro.id}`)
+    } catch {
+      setError('Error de red al crear el libro. Intenta de nuevo.')
+      setLoading(false)
+    }
   }
 
   return (
