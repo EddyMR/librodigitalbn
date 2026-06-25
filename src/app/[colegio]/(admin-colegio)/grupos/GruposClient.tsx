@@ -187,7 +187,20 @@ export default function GruposClient({
     const data = await res.json()
     setResetLoading(false)
     if (!res.ok) { showToast(data.error ?? 'Error al resetear contraseñas', 'error'); return }
-    setResetResult({ grupoNombre: data.grupoNombre, creds: data.creds })
+    const result = { grupoNombre: data.grupoNombre, creds: data.creds }
+    try { sessionStorage.setItem(`reset_creds_${grupo.id}`, JSON.stringify(result)) } catch {}
+    setResetResult(result)
+  }
+
+  function handleViewSavedPasswords(grupo: Grupo) {
+    try {
+      const saved = sessionStorage.getItem(`reset_creds_${grupo.id}`)
+      if (saved) { setResetResult(JSON.parse(saved)); setResetConfirm(null) }
+    } catch {}
+  }
+
+  function getCachedCreds(grupoId: string) {
+    try { return sessionStorage.getItem(`reset_creds_${grupoId}`) !== null } catch { return false }
   }
 
   // ── Alumnos management ───────────────────────────────────────
@@ -325,14 +338,31 @@ export default function GruposClient({
 
       {/* Reset passwords confirm */}
       {resetConfirm && (
-        <Confirm
-          open
-          title="¿Resetear contraseñas?"
-          message={`Se generarán nuevas contraseñas para todos los alumnos de "${resetConfirm.nombre}". Las contraseñas actuales dejarán de funcionar.`}
-          confirmLabel={resetLoading ? 'Procesando...' : 'Resetear y ver'}
-          onConfirm={() => handleResetPasswords(resetConfirm)}
-          onCancel={() => setResetConfirm(null)}
-        />
+        <Modal open onClose={() => setResetConfirm(null)} title="Contraseñas del grupo" size="sm">
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              Grupo: <span className="font-semibold text-slate-900">{resetConfirm.nombre}</span>
+            </p>
+            {getCachedCreds(resetConfirm.id) && (
+              <button
+                onClick={() => handleViewSavedPasswords(resetConfirm)}
+                className="btn-primary w-full flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" /> Ver contraseñas de esta sesión
+              </button>
+            )}
+            <button
+              disabled={resetLoading}
+              onClick={() => handleResetPasswords(resetConfirm)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-amber-50 hover:border-amber-300 text-slate-700 hover:text-amber-700 text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {resetLoading ? <><span className="w-4 h-4 rounded-full border-2 border-slate-300 border-t-amber-600 animate-spin" /> Procesando...</> : '⚠ Resetear y ver contraseñas nuevas'}
+            </button>
+            <p className="text-xs text-slate-400 text-center">
+              Al resetear las contraseñas anteriores dejan de funcionar
+            </p>
+          </div>
+        </Modal>
       )}
 
       {/* Print passwords result */}

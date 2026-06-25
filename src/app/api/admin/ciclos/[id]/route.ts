@@ -32,7 +32,13 @@ export async function PATCH(
     .select('id, nombre, descripcion, activo, orden, created_at')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    const isDuplicate = error.code === '23505'
+    return NextResponse.json(
+      { error: isDuplicate ? `Ya existe un ciclo llamado "${body.nombre}"` : error.message },
+      { status: isDuplicate ? 409 : 500 }
+    )
+  }
   return NextResponse.json({ ok: true, ciclo: data })
 }
 
