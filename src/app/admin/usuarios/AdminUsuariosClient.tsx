@@ -458,12 +458,23 @@ function EditModal({
       })
   }, [usuario.id, usuario.rol, usuario.colegio_id])
 
+  // Initial load: groups for the current colegio
   useEffect(() => {
     if (usuario.rol !== 'alumno' || !usuario.colegio_id) return
     fetch(`/api/admin/colegios/${usuario.colegio_id}/grupos`)
       .then(r => r.json())
       .then(data => setGruposDelColegio(data.grupos ?? []))
   }, [usuario.id, usuario.rol, usuario.colegio_id])
+
+  // When admin picks a NEW colegio: reload groups and clear group selection
+  useEffect(() => {
+    if (usuario.rol !== 'alumno' || !form.colegio_id) return
+    setGrupoSeleccionado('')
+    setGruposDelColegio([])
+    fetch(`/api/admin/colegios/${form.colegio_id}/grupos`)
+      .then(r => r.json())
+      .then(data => setGruposDelColegio(data.grupos ?? []))
+  }, [usuario.rol, form.colegio_id])
 
   useEffect(() => {
     if (!grupoSeleccionado) { setLibrosDelGrupo([]); return }
