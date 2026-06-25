@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CalendarDays, Plus, Pencil, Trash2, Check, Power, AlertCircle } from 'lucide-react'
 import { Modal, Confirm, Toast } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,14 @@ interface Props {
 export default function CiclosClient({ initialCiclos }: Props) {
   const [ciclos, setCiclos] = useState<Ciclo[]>(initialCiclos)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+
+  // Fetch fresh data on mount to avoid stale Router Cache
+  useEffect(() => {
+    fetch('/api/admin/ciclos')
+      .then(r => r.json())
+      .then(data => { if (data.ciclos) setCiclos(data.ciclos) })
+      .catch(() => {})
+  }, [])
   const [creando, setCreando] = useState(false)
   const [editando, setEditando] = useState<Ciclo | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Ciclo | null>(null)
