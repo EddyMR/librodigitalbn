@@ -253,10 +253,10 @@ export default function AdminSubidaMasivaClient({ colegios, grupos: _grupos }: P
             Subir más
           </button>
           <a
-            href={`/${colegioSeleccionado?.codigo}/usuarios`}
+            href="/admin/usuarios"
             className="flex-1 flex items-center justify-center py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium transition-colors"
           >
-            Ver usuarios del colegio
+            Ver usuarios
           </a>
         </div>
       </div>
