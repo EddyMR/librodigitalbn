@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Plus, Trash2, ChevronDown, ChevronUp, Upload, BookOpen, Users, Check, Camera, Mic, ListChecks, X, Film, Link, Pencil } from 'lucide-react'
 import { Modal, Toast, Confirm } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -47,12 +47,22 @@ interface Props {
 export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }: Props) {
   const [activeTab, setActiveTab] = useState<'contenido' | 'asignaciones'>('contenido')
   const [bloques, setBloques] = useState(libro.bloques)
+  const [loadingBloques, setLoadingBloques] = useState(libro.bloques.length === 0)
+  const mountFetchDone = useRef(false)
 
   useEffect(() => {
     fetch(`/api/admin/libros/${libroId}`)
       .then(r => r.json())
-      .then(data => { if (Array.isArray(data.bloques)) setBloques(data.bloques) })
+      .then(data => {
+        if (!mountFetchDone.current && Array.isArray(data.bloques)) {
+          setBloques(data.bloques)
+        }
+      })
       .catch(() => {})
+      .finally(() => {
+        mountFetchDone.current = true
+        setLoadingBloques(false)
+      })
   }, [libroId])
   const [grupos, setGrupos] = useState(gruposInit)
   const [expandedBloque, setExpandedBloque] = useState<string | null>(null)
@@ -220,6 +230,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     const data = await res.json()
     if (data.error) { setToast({ msg: 'Error al crear bloque', type: 'error' }); return }
 
+    mountFetchDone.current = true
     setBloques(prev => [...prev, { ...data.bloque, hojas: [] }])
     setNewBloqueNombre('')
     setNewBloqueDes('')
@@ -298,6 +309,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     })
     const data = await res.json()
     if (data.error) { setToast({ msg: 'Error al eliminar', type: 'error' }); return }
+    mountFetchDone.current = true
     setBloques(prev => prev.filter(b => b.id !== id))
     setToast({ msg: 'Bloque eliminado', type: 'success' })
     setDeleteConfirm(null)
@@ -922,7 +934,15 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
             <Plus className="w-4 h-4" /> Agregar bloque
           </button>
 
-          {bloques.map((bloque, idx) => (
+          {loadingBloques ? (
+            <div className="py-10 text-center text-slate-400 text-sm">Cargando bloques...</div>
+          ) : bloques.length === 0 ? (
+            <div className="card p-8 text-center">
+              <p className="text-slate-400 text-sm">No hay bloques aún. Agrega el primero.</p>
+            </div>
+          ) : null}
+
+          {!loadingBloques && bloques.map((bloque, idx) => (
             <div key={bloque.id} className="card overflow-hidden">
               <button
                 onClick={() => setExpandedBloque(expandedBloque === bloque.id ? null : bloque.id)}
