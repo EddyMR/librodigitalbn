@@ -54,8 +54,9 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     fetch(`/api/admin/libros/${libroId}`)
       .then(r => r.json())
       .then(data => {
-        if (!mountFetchDone.current && Array.isArray(data.bloques)) {
-          setBloques(data.bloques)
+        if (!mountFetchDone.current) {
+          if (Array.isArray(data.bloques)) setBloques(data.bloques)
+          if (Array.isArray(data.grupos)) setGrupos(data.grupos)
         }
       })
       .catch(() => {})

@@ -37,5 +37,20 @@ export async function GET(
     hojas: (hojasData ?? []).filter((h: any) => h.bloque_id === b.id),
   }))
 
-  return NextResponse.json({ bloques })
+  const [{ data: gruposRaw }, { data: libroGruposActivos }] = await Promise.all([
+    admin.from('grupos').select('id, nombre, colegio_id, colegios(id, nombre, codigo)').eq('activo', true).order('nombre'),
+    admin.from('libro_grupos').select('grupo_id').eq('libro_id', libroId).eq('activo', true),
+  ])
+
+  const asignadosSet = new Set((libroGruposActivos ?? []).map((r: any) => r.grupo_id))
+  const grupos = (gruposRaw ?? []).map((g: any) => ({
+    id: g.id,
+    nombre: g.nombre,
+    asignado: asignadosSet.has(g.id),
+    colegio_id: g.colegio_id,
+    colegio_nombre: g.colegios?.nombre ?? g.colegio_id,
+    colegio_codigo: g.colegios?.codigo ?? '',
+  }))
+
+  return NextResponse.json({ bloques, grupos })
 }
