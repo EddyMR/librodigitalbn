@@ -81,9 +81,17 @@ export interface ZonaEscritura {
   orden: number
 }
 
+export interface MediaItem {
+  tipo: 'audio' | 'video'
+  url: string
+  video_tipo?: 'youtube' | 'upload'
+}
+
 export interface HojaConfig {
   preguntas?: string[]
-  // multimedia
+  // multimedia (lista de audios/videos, en el orden en que se agregaron)
+  medios?: MediaItem[]
+  // legacy: hojas creadas antes del soporte multi-elemento (un solo audio/video)
   audio_url?: string
   video_url?: string
   video_tipo?: 'youtube' | 'upload'

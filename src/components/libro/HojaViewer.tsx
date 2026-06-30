@@ -777,39 +777,45 @@ export default function HojaViewer({
       {/* ── Multimedia ──────────────────────────────────────── */}
       {hoja.tipo === 'multimedia' && (
         <div className="space-y-4 pb-2">
-          {/* Audio from config */}
-          {hoja.config?.audio_url && (
-            <div className="mx-4 mt-4 bg-purple-50 rounded-2xl border border-purple-100 p-4">
-              <p className="text-xs font-semibold text-purple-700 mb-3 flex items-center gap-1.5">
-                <Mic className="w-3.5 h-3.5" /> Audio
-              </p>
-              <audio controls src={hoja.config.audio_url} className="w-full" style={{ height: '40px' }} />
-            </div>
-          )}
+          {/* Normalize config to medios list (supports both new multi-item and legacy single audio/video) */}
+          {(() => {
+            const cfg = hoja.config as any
+            const medios: { tipo: 'audio' | 'video'; url: string; video_tipo?: string }[] =
+              cfg?.medios?.length
+                ? cfg.medios
+                : [
+                    ...(cfg?.audio_url ? [{ tipo: 'audio' as const, url: cfg.audio_url }] : []),
+                    ...(cfg?.video_url ? [{ tipo: 'video' as const, url: cfg.video_url, video_tipo: cfg.video_tipo }] : []),
+                  ]
 
-          {/* Video from config */}
-          {hoja.config?.video_url && (() => {
-            const embedUrl = getYouTubeEmbedUrl(hoja.config!.video_url!)
-            return embedUrl ? (
-              <div className="mx-4 rounded-2xl overflow-hidden border border-slate-200 bg-black">
-                <iframe
-                  src={embedUrl}
-                  className="w-full aspect-video"
-                  allowFullScreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  title="Video"
-                />
-              </div>
-            ) : (
-              <div className="mx-4 rounded-2xl overflow-hidden border border-slate-200 bg-black">
-                <video
-                  controls
-                  src={hoja.config!.video_url}
-                  className="w-full aspect-video"
-                  playsInline
-                />
-              </div>
-            )
+            return medios.map((m, i) => {
+              if (m.tipo === 'audio') {
+                return (
+                  <div key={i} className="mx-4 mt-4 bg-purple-50 rounded-2xl border border-purple-100 p-4">
+                    <p className="text-xs font-semibold text-purple-700 mb-3 flex items-center gap-1.5">
+                      <Mic className="w-3.5 h-3.5" /> Audio {medios.filter(x => x.tipo === 'audio').length > 1 ? i + 1 : ''}
+                    </p>
+                    <audio controls src={m.url} className="w-full" style={{ height: '40px' }} />
+                  </div>
+                )
+              }
+              const embedUrl = getYouTubeEmbedUrl(m.url)
+              return embedUrl ? (
+                <div key={i} className="mx-4 rounded-2xl overflow-hidden border border-slate-200 bg-black">
+                  <iframe
+                    src={embedUrl}
+                    className="w-full aspect-video"
+                    allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    title="Video"
+                  />
+                </div>
+              ) : (
+                <div key={i} className="mx-4 rounded-2xl overflow-hidden border border-slate-200 bg-black">
+                  <video controls src={m.url} className="w-full aspect-video" playsInline />
+                </div>
+              )
+            })
           })()}
 
           {/* Text response */}

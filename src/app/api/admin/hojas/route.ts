@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { processMedios } from '@/lib/hojaMedia'
 
 function checkAdmin(request: NextRequest) {
   return request.cookies.get('admin_token')?.value === process.env.ADMIN_GENERAL_SECRET
@@ -42,28 +43,10 @@ export async function POST(request: NextRequest) {
   const imageUrl = await uploadFile(admin, file, imagePath)
   if (!imageUrl) return NextResponse.json({ error: 'Error al subir imagen' }, { status: 500 })
 
-  // Handle multimedia extra files
+  // Handle multimedia extra files (multiple audios/videos per hoja)
   if (tipo === 'multimedia') {
-    const audioFile = formData.get('audio_file') as File | null
-    const videoFile = formData.get('video_file') as File | null
-    const videoUrl = formData.get('video_url') as string | null
-
-    if (audioFile && audioFile.size > 0) {
-      const audioExt = audioFile.name.split('.').pop()
-      const audioPath = `libros/${libro_id}/${bloque_id}/audio_${ts}.${audioExt}`
-      const url = await uploadFile(admin, audioFile, audioPath)
-      if (url) config.audio_url = url
-    }
-
-    if (videoFile && videoFile.size > 0) {
-      const videoExt = videoFile.name.split('.').pop()
-      const videoPath = `libros/${libro_id}/${bloque_id}/video_${ts}.${videoExt}`
-      const url = await uploadFile(admin, videoFile, videoPath)
-      if (url) { config.video_url = url; config.video_tipo = 'upload' }
-    } else if (videoUrl?.trim()) {
-      config.video_url = videoUrl.trim()
-      config.video_tipo = 'youtube'
-    }
+    const medios = await processMedios(admin, formData, `libros/${libro_id}/${bloque_id}`)
+    if (medios.length > 0) config.medios = medios
   }
 
   const { data, error } = await admin

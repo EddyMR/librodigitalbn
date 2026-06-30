@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { processMedios } from '@/lib/hojaMedia'
 
 function checkAdmin(request: NextRequest) {
   return request.cookies.get('admin_token')?.value === process.env.ADMIN_GENERAL_SECRET
@@ -33,9 +34,6 @@ export async function PATCH(
   const tipo = formData.get('tipo') as string | null
   const configStr = formData.get('config') as string | null
   const file = formData.get('file') as File | null
-  const audioFile = formData.get('audio_file') as File | null
-  const videoFile = formData.get('video_file') as File | null
-  const videoUrl = formData.get('video_url') as string | null
   const libroId = formData.get('libro_id') as string | null
   const bloqueId = formData.get('bloque_id') as string | null
 
@@ -43,7 +41,7 @@ export async function PATCH(
   if (titulo !== null) updates.titulo = titulo.trim() || null
   if (tipo) updates.tipo = tipo
 
-  // Start with base config sent by client (existing audio/video URLs to keep)
+  // Start with base config sent by client (e.g. preguntas for cuestionario)
   let config: Record<string, unknown> = configStr ? JSON.parse(configStr) : {}
 
   // Upload new main image if provided
@@ -54,21 +52,10 @@ export async function PATCH(
     updates.imagen_url = imageUrl
   }
 
-  // Handle multimedia extra uploads
+  // Handle multimedia extra uploads (multiple audios/videos per hoja)
   if (tipo === 'multimedia' && libroId && bloqueId) {
-    if (audioFile && audioFile.size > 0) {
-      const audioExt = audioFile.name.split('.').pop()
-      const audioUrl = await uploadFile(admin, audioFile, `libros/${libroId}/${bloqueId}/audio_${ts}.${audioExt}`)
-      if (audioUrl) config.audio_url = audioUrl
-    }
-    if (videoFile && videoFile.size > 0) {
-      const videoExt = videoFile.name.split('.').pop()
-      const videoUploadUrl = await uploadFile(admin, videoFile, `libros/${libroId}/${bloqueId}/video_${ts}.${videoExt}`)
-      if (videoUploadUrl) { config.video_url = videoUploadUrl; config.video_tipo = 'upload' }
-    } else if (videoUrl?.trim()) {
-      config.video_url = videoUrl.trim()
-      config.video_tipo = 'youtube'
-    }
+    const medios = await processMedios(admin, formData, `libros/${libroId}/${bloqueId}`)
+    if (medios.length > 0) config.medios = medios
   }
 
   updates.config = Object.keys(config).length > 0 ? config : null

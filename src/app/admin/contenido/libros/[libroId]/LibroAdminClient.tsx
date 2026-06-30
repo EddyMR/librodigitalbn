@@ -24,10 +24,148 @@ async function resizeImage(file: File, maxDim = 2000, quality = 0.92): Promise<B
 
 type TipoHoja = 'lectura' | 'escritura_libre' | 'escritura_imagen' | 'foto' | 'audio' | 'cuestionario' | 'multimedia'
 
-interface HojaConfig { preguntas?: string[]; audio_url?: string; video_url?: string; video_tipo?: string }
+interface MediaItem { tipo: 'audio' | 'video'; url: string; video_tipo?: 'youtube' | 'upload' }
+interface HojaConfig {
+  preguntas?: string[]
+  medios?: MediaItem[]
+  // legacy (hojas creadas antes del soporte multi-elemento)
+  audio_url?: string
+  video_url?: string
+  video_tipo?: string
+}
 interface Hoja { id: string; titulo?: string; tipo: TipoHoja; imagen_url: string; orden: number; config?: HojaConfig }
 interface Bloque { id: string; titulo: string; descripcion?: string; orden: number; activo: boolean; hojas: Hoja[] }
 interface Libro { id: string; titulo: string; bloques: Bloque[] }
+
+// ── Multimedia: un solo formulario puede tener varios audios/videos ──
+interface MediaFormItem {
+  id: string
+  tipo: 'audio' | 'video'
+  source: 'file' | 'url' | 'existing'
+  file?: File
+  url?: string
+  videoTipo?: 'youtube' | 'upload'
+}
+
+function mediosFromConfig(config?: HojaConfig): MediaFormItem[] {
+  if (config?.medios && config.medios.length > 0) {
+    return config.medios.map(m => ({
+      id: crypto.randomUUID(), tipo: m.tipo, source: 'existing' as const, url: m.url, videoTipo: m.video_tipo,
+    }))
+  }
+  const items: MediaFormItem[] = []
+  if (config?.audio_url) items.push({ id: crypto.randomUUID(), tipo: 'audio', source: 'existing', url: config.audio_url })
+  if (config?.video_url) items.push({ id: crypto.randomUUID(), tipo: 'video', source: 'existing', url: config.video_url, videoTipo: config.video_tipo as 'youtube' | 'upload' | undefined })
+  return items
+}
+
+function appendMediosMeta(fd: FormData, items: MediaFormItem[]) {
+  const metas: Record<string, unknown>[] = []
+  items.forEach((item, i) => {
+    if (item.source === 'file' && item.file) {
+      fd.append(`media_file_${i}`, item.file)
+      metas.push({ tipo: item.tipo, source: 'file', index: i })
+    } else if (item.source === 'url' && item.tipo === 'video' && item.url?.trim()) {
+      metas.push({ tipo: 'video', source: 'url', url: item.url.trim() })
+    } else if (item.source === 'existing' && item.url) {
+      metas.push({ tipo: item.tipo, source: 'existing', url: item.url, video_tipo: item.videoTipo })
+    }
+  })
+  if (metas.length > 0) fd.append('medios_meta', JSON.stringify(metas))
+}
+
+function addMediaItem(setter: React.Dispatch<React.SetStateAction<MediaFormItem[]>>, tipo: 'audio' | 'video') {
+  setter(prev => [...prev, { id: crypto.randomUUID(), tipo, source: tipo === 'audio' ? 'file' : 'url' }])
+}
+function removeMediaItem(setter: React.Dispatch<React.SetStateAction<MediaFormItem[]>>, id: string) {
+  setter(prev => prev.filter(m => m.id !== id))
+}
+function updateMediaItem(setter: React.Dispatch<React.SetStateAction<MediaFormItem[]>>, id: string, patch: Partial<MediaFormItem>) {
+  setter(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m))
+}
+
+function MediaItemEditor({
+  item, onChange, onRemove,
+}: {
+  item: MediaFormItem
+  onChange: (patch: Partial<MediaFormItem>) => void
+  onRemove: () => void
+}) {
+  const isAudio = item.tipo === 'audio'
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 p-2.5 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className={cn('text-xs font-semibold flex items-center gap-1.5', isAudio ? 'text-purple-600' : 'text-brand-600')}>
+          {isAudio ? <Mic className="w-3.5 h-3.5" /> : <Film className="w-3.5 h-3.5" />}
+          {isAudio ? 'Audio' : 'Video'}
+        </span>
+        <button type="button" onClick={onRemove} className="text-slate-300 hover:text-red-500">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {!isAudio && item.source !== 'existing' && (
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+          {(['url', 'file'] as const).map(s => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onChange({ source: s, file: undefined, url: undefined })}
+              className={cn(
+                'flex-1 py-1.5 text-xs font-medium transition-colors',
+                item.source === s ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+              )}
+            >
+              {s === 'url' ? '🔗 URL / YouTube' : '📁 Subir archivo'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {item.source === 'existing' ? (
+        <div className="flex items-center gap-2 px-2.5 py-2 bg-slate-50 rounded-lg">
+          {isAudio ? <Mic className="w-4 h-4 text-green-500 flex-shrink-0" /> : <Film className="w-4 h-4 text-green-500 flex-shrink-0" />}
+          <span className="text-xs text-slate-500 flex-1">{isAudio ? 'Audio' : 'Video'} actual guardado</span>
+          <label className="text-xs text-brand-600 hover:text-brand-700 cursor-pointer font-medium">
+            Cambiar
+            <input
+              type="file"
+              accept={isAudio ? 'audio/*' : 'video/*'}
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) onChange({ source: 'file', file: f, url: undefined }) }}
+            />
+          </label>
+        </div>
+      ) : item.source === 'url' ? (
+        <input
+          className="input text-sm"
+          placeholder="https://youtube.com/watch?v=... o URL directa de video"
+          value={item.url ?? ''}
+          onChange={e => onChange({ url: e.target.value })}
+        />
+      ) : item.file ? (
+        <div className="flex items-center gap-2 px-2.5 py-2 bg-slate-50 rounded-lg">
+          {isAudio ? <Mic className="w-4 h-4 text-purple-500 flex-shrink-0" /> : <Film className="w-4 h-4 text-brand-500 flex-shrink-0" />}
+          <span className="text-xs text-slate-700 flex-1 truncate">{item.file.name}</span>
+          <button type="button" onClick={() => onChange({ file: undefined })} className="text-slate-400 hover:text-red-500 flex-shrink-0">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : (
+        <label className="flex items-center gap-2 px-2.5 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-brand-400 hover:bg-brand-50/50 transition-colors">
+          <Upload className="w-4 h-4 text-slate-400" />
+          <span className="text-xs text-slate-500">Subir archivo {isAudio ? 'de audio (MP3, WAV, M4A…)' : 'de video (MP4, WebM…)'}</span>
+          <input
+            type="file"
+            accept={isAudio ? 'audio/*' : 'video/*'}
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) onChange({ file: f }) }}
+          />
+        </label>
+      )}
+    </div>
+  )
+}
 
 interface GrupoAsignacion {
   id: string
@@ -74,11 +212,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
   const [newHojaData, setNewHojaData] = useState({ titulo: '', tipo: 'lectura' as TipoHoja })
   const [preguntas, setPreguntas] = useState<string[]>([])
   const [nuevaPregunta, setNuevaPregunta] = useState('')
-  // multimedia
-  const [multimediaAudioFile, setMultimediaAudioFile] = useState<File | null>(null)
-  const [multimediaVideoFile, setMultimediaVideoFile] = useState<File | null>(null)
-  const [multimediaVideoUrl, setMultimediaVideoUrl] = useState('')
-  const [multimediaVideoTipo, setMultimediaVideoTipo] = useState<'url' | 'upload'>('url')
+  const [mediaItems, setMediaItems] = useState<MediaFormItem[]>([])
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -92,10 +226,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
   const [editNuevaPregunta, setEditNuevaPregunta] = useState('')
   const [editImageFile, setEditImageFile] = useState<File | null>(null)
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null)
-  const [editMultimediaAudioFile, setEditMultimediaAudioFile] = useState<File | null>(null)
-  const [editMultimediaVideoFile, setEditMultimediaVideoFile] = useState<File | null>(null)
-  const [editMultimediaVideoUrl, setEditMultimediaVideoUrl] = useState('')
-  const [editMultimediaVideoTipo, setEditMultimediaVideoTipo] = useState<'url' | 'upload'>('url')
+  const [editMediaItems, setEditMediaItems] = useState<MediaFormItem[]>([])
   const [editSaving, setEditSaving] = useState(false)
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -123,10 +254,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     setEditNuevaPregunta('')
     setEditImageFile(null)
     setEditImagePreview(null)
-    setEditMultimediaAudioFile(null)
-    setEditMultimediaVideoFile(null)
-    setEditMultimediaVideoUrl(hoja.config?.video_url ?? '')
-    setEditMultimediaVideoTipo(hoja.config?.video_tipo === 'upload' ? 'upload' : 'url')
+    setEditMediaItems(mediosFromConfig(hoja.config))
   }
 
   function closeEdit() {
@@ -135,10 +263,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     setEditImagePreview(null)
     setEditPreguntas([])
     setEditNuevaPregunta('')
-    setEditMultimediaAudioFile(null)
-    setEditMultimediaVideoFile(null)
-    setEditMultimediaVideoUrl('')
-    setEditMultimediaVideoTipo('url')
+    setEditMediaItems([])
   }
 
   async function handleSaveEdit() {
@@ -165,26 +290,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
       if (editForm.tipo === 'cuestionario') {
         config.preguntas = editPreguntas
       } else if (editForm.tipo === 'multimedia') {
-        // Keep existing audio URL if no new file uploaded
-        if (editMultimediaAudioFile) {
-          fd.append('audio_file', editMultimediaAudioFile)
-        } else if (hoja.config?.audio_url) {
-          config.audio_url = hoja.config.audio_url
-        }
-        // Video: new file, URL, or keep existing uploaded video
-        if (editMultimediaVideoTipo === 'upload' && editMultimediaVideoFile) {
-          fd.append('video_file', editMultimediaVideoFile)
-        } else if (editMultimediaVideoTipo === 'url' && editMultimediaVideoUrl.trim()) {
-          fd.append('video_url', editMultimediaVideoUrl.trim())
-        } else if (
-          editMultimediaVideoTipo === 'upload' &&
-          !editMultimediaVideoFile &&
-          hoja.config?.video_tipo === 'upload' &&
-          hoja.config?.video_url
-        ) {
-          config.video_url = hoja.config.video_url
-          config.video_tipo = 'upload'
-        }
+        appendMediosMeta(fd, editMediaItems)
       }
       if (Object.keys(config).length > 0) fd.append('config', JSON.stringify(config))
 
@@ -265,12 +371,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
         formData.append('config', JSON.stringify({ preguntas }))
       }
       if (newHojaData.tipo === 'multimedia') {
-        if (multimediaAudioFile) formData.append('audio_file', multimediaAudioFile)
-        if (multimediaVideoTipo === 'upload' && multimediaVideoFile) {
-          formData.append('video_file', multimediaVideoFile)
-        } else if (multimediaVideoTipo === 'url' && multimediaVideoUrl.trim()) {
-          formData.append('video_url', multimediaVideoUrl.trim())
-        }
+        appendMediosMeta(formData, mediaItems)
       }
 
       const res = await fetch('/api/admin/hojas', { method: 'POST', body: formData })
@@ -287,10 +388,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
       setNewHojaData({ titulo: '', tipo: 'lectura' })
       setPreguntas([])
       setNuevaPregunta('')
-      setMultimediaAudioFile(null)
-      setMultimediaVideoFile(null)
-      setMultimediaVideoUrl('')
-      setMultimediaVideoTipo('url')
+      setMediaItems([])
       setImageFile(null)
       setImagePreview(null)
       setShowHojaModal(null)
@@ -403,7 +501,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     foto:            { desc: 'El alumno toma una foto o sube una imagen', icon: <Camera className="w-4 h-4" /> },
     audio:           { desc: 'El alumno graba o sube un audio', icon: <Mic className="w-4 h-4" /> },
     cuestionario:    { desc: 'El alumno responde preguntas específicas', icon: <ListChecks className="w-4 h-4" /> },
-    multimedia:      { desc: 'Imagen + audio + video. El alumno responde con texto', icon: <Film className="w-4 h-4" /> },
+    multimedia:      { desc: 'Imagen + uno o más audios/videos. El alumno responde con texto', icon: <Film className="w-4 h-4" /> },
   }
 
   // Group by colegio for assignment view
@@ -469,7 +567,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
       </Modal>
 
       {showHojaModal && (
-        <Modal open onClose={() => { setShowHojaModal(null); setImageFile(null); setImagePreview(null); setPreguntas([]); setNuevaPregunta(''); setMultimediaAudioFile(null); setMultimediaVideoFile(null); setMultimediaVideoUrl(''); setMultimediaVideoTipo('url') }} title="Nueva hoja" size="lg">
+        <Modal open onClose={() => { setShowHojaModal(null); setImageFile(null); setImagePreview(null); setPreguntas([]); setNuevaPregunta(''); setMediaItems([]) }} title="Nueva hoja" size="lg">
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-slate-700">Título (opcional)</label>
@@ -564,74 +662,33 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
               <div className="space-y-3 bg-slate-50 rounded-xl p-3 border border-slate-200">
                 <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                   <Film className="w-4 h-4 text-brand-500" />
-                  Contenido multimedia <span className="font-normal text-slate-400">(opcional)</span>
+                  Contenido multimedia <span className="font-normal text-slate-400">(puedes agregar varios)</span>
                 </p>
 
-                {/* Audio */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                    <Mic className="w-3.5 h-3.5" /> Audio
-                  </label>
-                  {multimediaAudioFile ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200">
-                      <Mic className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                      <span className="text-xs text-slate-700 flex-1 truncate">{multimediaAudioFile.name}</span>
-                      <button type="button" onClick={() => setMultimediaAudioFile(null)} className="text-slate-400 hover:text-red-500 flex-shrink-0">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-colors">
-                      <Upload className="w-4 h-4 text-slate-400" />
-                      <span className="text-xs text-slate-500">Subir archivo de audio (MP3, WAV, M4A…)</span>
-                      <input type="file" accept="audio/*" className="hidden" onChange={e => setMultimediaAudioFile(e.target.files?.[0] ?? null)} />
-                    </label>
-                  )}
-                </div>
+                {mediaItems.map(item => (
+                  <MediaItemEditor
+                    key={item.id}
+                    item={item}
+                    onChange={patch => updateMediaItem(setMediaItems, item.id, patch)}
+                    onRemove={() => removeMediaItem(setMediaItems, item.id)}
+                  />
+                ))}
 
-                {/* Video */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                    <Film className="w-3.5 h-3.5" /> Video
-                  </label>
-                  <div className="flex rounded-lg border border-slate-200 overflow-hidden">
-                    {(['url', 'upload'] as const).map(t => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setMultimediaVideoTipo(t)}
-                        className={cn(
-                          'flex-1 py-1.5 text-xs font-medium transition-colors',
-                          multimediaVideoTipo === t ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-                        )}
-                      >
-                        {t === 'url' ? '🔗 URL / YouTube' : '📁 Subir video'}
-                      </button>
-                    ))}
-                  </div>
-
-                  {multimediaVideoTipo === 'url' ? (
-                    <input
-                      className="input text-sm"
-                      placeholder="https://youtube.com/watch?v=... o URL directa de video"
-                      value={multimediaVideoUrl}
-                      onChange={e => setMultimediaVideoUrl(e.target.value)}
-                    />
-                  ) : multimediaVideoFile ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200">
-                      <Film className="w-4 h-4 text-brand-500 flex-shrink-0" />
-                      <span className="text-xs text-slate-700 flex-1 truncate">{multimediaVideoFile.name}</span>
-                      <button type="button" onClick={() => setMultimediaVideoFile(null)} className="text-slate-400 hover:text-red-500 flex-shrink-0">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-brand-400 hover:bg-brand-50/50 transition-colors">
-                      <Upload className="w-4 h-4 text-slate-400" />
-                      <span className="text-xs text-slate-500">Subir archivo de video (MP4, WebM…)</span>
-                      <input type="file" accept="video/*" className="hidden" onChange={e => setMultimediaVideoFile(e.target.files?.[0] ?? null)} />
-                    </label>
-                  )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => addMediaItem(setMediaItems, 'audio')}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-purple-300 text-purple-600 text-xs font-medium hover:bg-purple-50 transition-colors"
+                  >
+                    <Mic className="w-3.5 h-3.5" /> Agregar audio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addMediaItem(setMediaItems, 'video')}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-brand-300 text-brand-600 text-xs font-medium hover:bg-brand-50 transition-colors"
+                  >
+                    <Film className="w-3.5 h-3.5" /> Agregar video
+                  </button>
                 </div>
               </div>
             )}
@@ -761,87 +818,33 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
               <div className="space-y-3 bg-slate-50 rounded-xl p-3 border border-slate-200">
                 <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                   <Film className="w-4 h-4 text-brand-500" />
-                  Contenido multimedia <span className="font-normal text-slate-400">(opcional)</span>
+                  Contenido multimedia <span className="font-normal text-slate-400">(puedes agregar varios)</span>
                 </p>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                    <Mic className="w-3.5 h-3.5" /> Audio
-                  </label>
-                  {editMultimediaAudioFile ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200">
-                      <Mic className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                      <span className="text-xs text-slate-700 flex-1 truncate">{editMultimediaAudioFile.name}</span>
-                      <button type="button" onClick={() => setEditMultimediaAudioFile(null)} className="text-slate-400 hover:text-red-500 flex-shrink-0">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : editingHoja.hoja.config?.audio_url ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200">
-                      <Mic className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      <span className="text-xs text-slate-500 flex-1">Audio actual guardado</span>
-                      <label className="text-xs text-brand-600 hover:text-brand-700 cursor-pointer font-medium">
-                        Cambiar
-                        <input type="file" accept="audio/*" className="hidden" onChange={e => setEditMultimediaAudioFile(e.target.files?.[0] ?? null)} />
-                      </label>
-                    </div>
-                  ) : (
-                    <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-colors">
-                      <Upload className="w-4 h-4 text-slate-400" />
-                      <span className="text-xs text-slate-500">Subir archivo de audio (MP3, WAV, M4A…)</span>
-                      <input type="file" accept="audio/*" className="hidden" onChange={e => setEditMultimediaAudioFile(e.target.files?.[0] ?? null)} />
-                    </label>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                    <Film className="w-3.5 h-3.5" /> Video
-                  </label>
-                  <div className="flex rounded-lg border border-slate-200 overflow-hidden">
-                    {(['url', 'upload'] as const).map(t => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setEditMultimediaVideoTipo(t)}
-                        className={cn(
-                          'flex-1 py-1.5 text-xs font-medium transition-colors',
-                          editMultimediaVideoTipo === t ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-                        )}
-                      >
-                        {t === 'url' ? '🔗 URL / YouTube' : '📁 Subir video'}
-                      </button>
-                    ))}
-                  </div>
-                  {editMultimediaVideoTipo === 'url' ? (
-                    <input
-                      className="input text-sm"
-                      placeholder="https://youtube.com/watch?v=... o URL directa de video"
-                      value={editMultimediaVideoUrl}
-                      onChange={e => setEditMultimediaVideoUrl(e.target.value)}
-                    />
-                  ) : editMultimediaVideoFile ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200">
-                      <Film className="w-4 h-4 text-brand-500 flex-shrink-0" />
-                      <span className="text-xs text-slate-700 flex-1 truncate">{editMultimediaVideoFile.name}</span>
-                      <button type="button" onClick={() => setEditMultimediaVideoFile(null)} className="text-slate-400 hover:text-red-500 flex-shrink-0">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (editingHoja.hoja.config?.video_tipo === 'upload' && editingHoja.hoja.config?.video_url) ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200">
-                      <Film className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      <span className="text-xs text-slate-500 flex-1">Video actual guardado</span>
-                      <label className="text-xs text-brand-600 hover:text-brand-700 cursor-pointer font-medium">
-                        Cambiar
-                        <input type="file" accept="video/*" className="hidden" onChange={e => setEditMultimediaVideoFile(e.target.files?.[0] ?? null)} />
-                      </label>
-                    </div>
-                  ) : (
-                    <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-brand-400 hover:bg-brand-50/50 transition-colors">
-                      <Upload className="w-4 h-4 text-slate-400" />
-                      <span className="text-xs text-slate-500">Subir archivo de video (MP4, WebM…)</span>
-                      <input type="file" accept="video/*" className="hidden" onChange={e => setEditMultimediaVideoFile(e.target.files?.[0] ?? null)} />
-                    </label>
-                  )}
+
+                {editMediaItems.map(item => (
+                  <MediaItemEditor
+                    key={item.id}
+                    item={item}
+                    onChange={patch => updateMediaItem(setEditMediaItems, item.id, patch)}
+                    onRemove={() => removeMediaItem(setEditMediaItems, item.id)}
+                  />
+                ))}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => addMediaItem(setEditMediaItems, 'audio')}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-purple-300 text-purple-600 text-xs font-medium hover:bg-purple-50 transition-colors"
+                  >
+                    <Mic className="w-3.5 h-3.5" /> Agregar audio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addMediaItem(setEditMediaItems, 'video')}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-brand-300 text-brand-600 text-xs font-medium hover:bg-brand-50 transition-colors"
+                  >
+                    <Film className="w-3.5 h-3.5" /> Agregar video
+                  </button>
                 </div>
               </div>
             )}
