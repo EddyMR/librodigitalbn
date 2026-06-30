@@ -11,6 +11,8 @@ interface Props {
   libroId: string
   bloqueId: string
   bloqueTitle: string
+  bloqueIndex: number
+  totalBloques: number
   hojaIndex: number
   totalHojas: number
   prevHojaId?: string
@@ -19,7 +21,7 @@ interface Props {
 }
 
 export default function HojaNav({
-  codigo, libroId, bloqueId, bloqueTitle,
+  codigo, libroId, bloqueId, bloqueTitle, bloqueIndex, totalBloques,
   hojaIndex, totalHojas, prevHojaId, nextHojaId, hojas,
 }: Props) {
   const router = useRouter()
@@ -62,7 +64,12 @@ export default function HojaNav({
 
         {/* Center: title + progress */}
         <div className="flex-1 text-center px-1 min-w-0">
-          <p className="text-white text-xs font-medium truncate leading-tight">{bloqueTitle}</p>
+          {bloqueIndex >= 0 && totalBloques > 0 && (
+            <p className="text-brand-400 text-[10px] font-semibold uppercase tracking-wide leading-none">
+              Bloque {bloqueIndex + 1} de {totalBloques}
+            </p>
+          )}
+          <p className="text-white text-xs font-medium truncate leading-tight mt-0.5">{bloqueTitle}</p>
           <div className="flex items-center justify-center gap-1 mt-1.5 flex-wrap">
 
             {/* Clickable dots — shown when ≤ 12 pages */}

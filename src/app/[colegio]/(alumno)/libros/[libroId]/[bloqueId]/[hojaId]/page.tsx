@@ -45,6 +45,15 @@ export default async function HojaPage({ params }: Props) {
     .eq('id', bloqueId)
     .single()
 
+  // Get all bloques in this libro to know "Bloque X de Y"
+  const { data: todosBloquesRaw } = await admin
+    .from('bloques')
+    .select('id, orden')
+    .eq('libro_id', bloque?.libro_id ?? '')
+    .eq('activo', true)
+  const todosBloques = (todosBloquesRaw ?? []).sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+  const bloqueIndex = todosBloques.findIndex(b => b.id === bloqueId)
+
   // Get existing entrega + comment if alumno (use session client with RLS)
   let entrega = null
   let comentario = null
@@ -84,6 +93,8 @@ export default async function HojaPage({ params }: Props) {
         libroId={libroId}
         bloqueId={bloqueId}
         bloqueTitle={bloque?.titulo ?? ''}
+        bloqueIndex={bloqueIndex}
+        totalBloques={todosBloques.length}
         hojaIndex={hojaIndex}
         totalHojas={hojas.length}
         prevHojaId={prevHoja?.id}
