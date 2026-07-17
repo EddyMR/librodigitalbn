@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, ChevronDown, ChevronUp, Upload, BookOpen, Users, Check, Camera, Mic, ListChecks, X, Film, Link, Pencil } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Upload, BookOpen, Users, Check, Camera, Mic, ListChecks, X, Film, Link, Pencil, Table2 } from 'lucide-react'
 import { Modal, Toast, Confirm } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
@@ -22,11 +22,13 @@ async function resizeImage(file: File, maxDim = 2000, quality = 0.92): Promise<B
   })
 }
 
-type TipoHoja = 'lectura' | 'escritura_libre' | 'escritura_imagen' | 'foto' | 'audio' | 'cuestionario' | 'multimedia'
+type TipoHoja = 'lectura' | 'escritura_libre' | 'escritura_imagen' | 'foto' | 'audio' | 'cuestionario' | 'multimedia' | 'tabla'
 
 interface MediaItem { tipo: 'audio' | 'video'; url: string; video_tipo?: 'youtube' | 'upload' }
 interface HojaConfig {
   preguntas?: string[]
+  filas?: string[]
+  columnas?: string[]
   medios?: MediaItem[]
   // legacy (hojas creadas antes del soporte multi-elemento)
   audio_url?: string
@@ -228,6 +230,16 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null)
   const [editMediaItems, setEditMediaItems] = useState<MediaFormItem[]>([])
   const [editSaving, setEditSaving] = useState(false)
+  // tabla config (create)
+  const [tablaFilas, setTablaFilas] = useState<string[]>([])
+  const [tablaColumnas, setTablaColumnas] = useState<string[]>([])
+  const [nuevaFila, setNuevaFila] = useState('')
+  const [nuevaColumna, setNuevaColumna] = useState('')
+  // tabla config (edit)
+  const [editTablaFilas, setEditTablaFilas] = useState<string[]>([])
+  const [editTablaColumnas, setEditTablaColumnas] = useState<string[]>([])
+  const [editNuevaFila, setEditNuevaFila] = useState('')
+  const [editNuevaColumna, setEditNuevaColumna] = useState('')
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -255,6 +267,10 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     setEditImageFile(null)
     setEditImagePreview(null)
     setEditMediaItems(mediosFromConfig(hoja.config))
+    setEditTablaFilas(hoja.config?.filas ?? [])
+    setEditTablaColumnas(hoja.config?.columnas ?? [])
+    setEditNuevaFila('')
+    setEditNuevaColumna('')
   }
 
   function closeEdit() {
@@ -264,12 +280,18 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     setEditPreguntas([])
     setEditNuevaPregunta('')
     setEditMediaItems([])
+    setEditTablaFilas([])
+    setEditTablaColumnas([])
   }
 
   async function handleSaveEdit() {
     if (!editingHoja) return
     if (editForm.tipo === 'cuestionario' && editPreguntas.length === 0) {
       setToast({ msg: 'Agrega al menos una pregunta', type: 'error' })
+      return
+    }
+    if (editForm.tipo === 'tabla' && (editTablaFilas.length === 0 || editTablaColumnas.length === 0)) {
+      setToast({ msg: 'Agrega al menos una fila y una columna', type: 'error' })
       return
     }
     setEditSaving(true)
@@ -291,6 +313,9 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
         config.preguntas = editPreguntas
       } else if (editForm.tipo === 'multimedia') {
         appendMediosMeta(fd, editMediaItems)
+      } else if (editForm.tipo === 'tabla') {
+        config.filas = editTablaFilas
+        config.columnas = editTablaColumnas
       }
       if (Object.keys(config).length > 0) fd.append('config', JSON.stringify(config))
 
@@ -350,6 +375,9 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     if (newHojaData.tipo === 'cuestionario' && preguntas.length === 0) {
       setToast({ msg: 'Agrega al menos una pregunta al cuestionario', type: 'error' }); return
     }
+    if (newHojaData.tipo === 'tabla' && (tablaFilas.length === 0 || tablaColumnas.length === 0)) {
+      setToast({ msg: 'Agrega al menos una fila y una columna a la tabla', type: 'error' }); return
+    }
     setUploading(true)
 
     try {
@@ -373,6 +401,9 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
       if (newHojaData.tipo === 'multimedia') {
         appendMediosMeta(formData, mediaItems)
       }
+      if (newHojaData.tipo === 'tabla') {
+        formData.append('config', JSON.stringify({ filas: tablaFilas, columnas: tablaColumnas }))
+      }
 
       const res = await fetch('/api/admin/hojas', { method: 'POST', body: formData })
       if (!res.ok) {
@@ -389,6 +420,10 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
       setPreguntas([])
       setNuevaPregunta('')
       setMediaItems([])
+      setTablaFilas([])
+      setTablaColumnas([])
+      setNuevaFila('')
+      setNuevaColumna('')
       setImageFile(null)
       setImagePreview(null)
       setShowHojaModal(null)
@@ -492,6 +527,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     audio: 'Grabar / subir audio',
     cuestionario: 'Cuestionario',
     multimedia: 'Multimedia',
+    tabla: 'Tabla',
   }
 
   const tipoMeta: Record<TipoHoja, { desc: string; icon: React.ReactNode }> = {
@@ -502,6 +538,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
     audio:           { desc: 'El alumno graba o sube un audio', icon: <Mic className="w-4 h-4" /> },
     cuestionario:    { desc: 'El alumno responde preguntas específicas', icon: <ListChecks className="w-4 h-4" /> },
     multimedia:      { desc: 'Imagen + uno o más audios/videos. El alumno responde con texto', icon: <Film className="w-4 h-4" /> },
+    tabla:           { desc: 'El alumno completa una tabla con filas y columnas configurables', icon: <Table2 className="w-4 h-4" /> },
   }
 
   // Group by colegio for assignment view
@@ -693,6 +730,94 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
               </div>
             )}
 
+            {/* Tabla config */}
+            {newHojaData.tipo === 'tabla' && (
+              <div className="space-y-3 bg-slate-50 rounded-xl p-3 border border-slate-200">
+                <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Table2 className="w-4 h-4 text-brand-500" />
+                  Estructura de la tabla
+                </p>
+
+                {/* Filas */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Filas (etiquetas de fila)</p>
+                  {tablaFilas.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {tablaFilas.map((f, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-700">
+                          {f}
+                          <button type="button" onClick={() => setTablaFilas(p => p.filter((_, idx) => idx !== i))} className="text-slate-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      className="input flex-1 text-sm"
+                      placeholder="Ej: Sentimiento, Reflexión..."
+                      value={nuevaFila}
+                      onChange={e => setNuevaFila(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && nuevaFila.trim()) { setTablaFilas(p => [...p, nuevaFila.trim()]); setNuevaFila('') } }}
+                    />
+                    <button type="button" disabled={!nuevaFila.trim()} onClick={() => { setTablaFilas(p => [...p, nuevaFila.trim()]); setNuevaFila('') }} className="btn-primary px-3 py-2 text-sm"><Plus className="w-4 h-4" /></button>
+                  </div>
+                  {tablaFilas.length === 0 && <p className="text-xs text-slate-400">Agrega al menos una fila</p>}
+                </div>
+
+                {/* Columnas */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Columnas (encabezados)</p>
+                  {tablaColumnas.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {tablaColumnas.map((c, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-700">
+                          {c}
+                          <button type="button" onClick={() => setTablaColumnas(p => p.filter((_, idx) => idx !== i))} className="text-slate-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      className="input flex-1 text-sm"
+                      placeholder="Ej: Lunes, Martes, Miércoles..."
+                      value={nuevaColumna}
+                      onChange={e => setNuevaColumna(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && nuevaColumna.trim()) { setTablaColumnas(p => [...p, nuevaColumna.trim()]); setNuevaColumna('') } }}
+                    />
+                    <button type="button" disabled={!nuevaColumna.trim()} onClick={() => { setTablaColumnas(p => [...p, nuevaColumna.trim()]); setNuevaColumna('') }} className="btn-primary px-3 py-2 text-sm"><Plus className="w-4 h-4" /></button>
+                  </div>
+                  {tablaColumnas.length === 0 && <p className="text-xs text-slate-400">Agrega al menos una columna</p>}
+                </div>
+
+                {/* Mini preview */}
+                {tablaFilas.length > 0 && tablaColumnas.length > 0 && (
+                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                    <table className="text-xs w-full">
+                      <thead>
+                        <tr>
+                          <th className="bg-brand-600 text-white px-2 py-1.5 text-left font-semibold w-24 border-r border-brand-500 rounded-tl-lg"></th>
+                          {tablaColumnas.map((c, i) => (
+                            <th key={i} className="bg-brand-600 text-white px-2 py-1.5 text-center font-semibold border-r border-brand-500 last:border-r-0 last:rounded-tr-lg">{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tablaFilas.map((f, i) => (
+                          <tr key={i} className="border-t border-slate-100">
+                            <td className="bg-slate-50 px-2 py-1.5 font-semibold text-slate-700 border-r border-slate-200">{f}</td>
+                            {tablaColumnas.map((_, j) => (
+                              <td key={j} className="px-2 py-1.5 text-center text-slate-300 border-r border-slate-100 last:border-r-0">—</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">
                 Imagen de la hoja * <span className="text-slate-400 font-normal">(formato vertical, ej: 430×932px)</span>
@@ -846,6 +971,92 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
                     <Film className="w-3.5 h-3.5" /> Agregar video
                   </button>
                 </div>
+              </div>
+
+            )}
+
+            {/* Tabla config (edit) */}
+            {editForm.tipo === 'tabla' && (
+              <div className="space-y-3 bg-slate-50 rounded-xl p-3 border border-slate-200">
+                <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Table2 className="w-4 h-4 text-brand-500" />
+                  Estructura de la tabla
+                </p>
+
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Filas (etiquetas de fila)</p>
+                  {editTablaFilas.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {editTablaFilas.map((f, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-700">
+                          {f}
+                          <button type="button" onClick={() => setEditTablaFilas(p => p.filter((_, idx) => idx !== i))} className="text-slate-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      className="input flex-1 text-sm"
+                      placeholder="Ej: Sentimiento, Reflexión..."
+                      value={editNuevaFila}
+                      onChange={e => setEditNuevaFila(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && editNuevaFila.trim()) { setEditTablaFilas(p => [...p, editNuevaFila.trim()]); setEditNuevaFila('') } }}
+                    />
+                    <button type="button" disabled={!editNuevaFila.trim()} onClick={() => { setEditTablaFilas(p => [...p, editNuevaFila.trim()]); setEditNuevaFila('') }} className="btn-primary px-3 py-2 text-sm"><Plus className="w-4 h-4" /></button>
+                  </div>
+                  {editTablaFilas.length === 0 && <p className="text-xs text-slate-400">Agrega al menos una fila</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Columnas (encabezados)</p>
+                  {editTablaColumnas.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {editTablaColumnas.map((c, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-700">
+                          {c}
+                          <button type="button" onClick={() => setEditTablaColumnas(p => p.filter((_, idx) => idx !== i))} className="text-slate-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      className="input flex-1 text-sm"
+                      placeholder="Ej: Lunes, Martes, Miércoles..."
+                      value={editNuevaColumna}
+                      onChange={e => setEditNuevaColumna(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && editNuevaColumna.trim()) { setEditTablaColumnas(p => [...p, editNuevaColumna.trim()]); setEditNuevaColumna('') } }}
+                    />
+                    <button type="button" disabled={!editNuevaColumna.trim()} onClick={() => { setEditTablaColumnas(p => [...p, editNuevaColumna.trim()]); setEditNuevaColumna('') }} className="btn-primary px-3 py-2 text-sm"><Plus className="w-4 h-4" /></button>
+                  </div>
+                  {editTablaColumnas.length === 0 && <p className="text-xs text-slate-400">Agrega al menos una columna</p>}
+                </div>
+
+                {editTablaFilas.length > 0 && editTablaColumnas.length > 0 && (
+                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                    <table className="text-xs w-full">
+                      <thead>
+                        <tr>
+                          <th className="bg-brand-600 text-white px-2 py-1.5 text-left font-semibold w-24 border-r border-brand-500 rounded-tl-lg"></th>
+                          {editTablaColumnas.map((c, i) => (
+                            <th key={i} className="bg-brand-600 text-white px-2 py-1.5 text-center font-semibold border-r border-brand-500 last:border-r-0 last:rounded-tr-lg">{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {editTablaFilas.map((f, i) => (
+                          <tr key={i} className="border-t border-slate-100">
+                            <td className="bg-slate-50 px-2 py-1.5 font-semibold text-slate-700 border-r border-slate-200">{f}</td>
+                            {editTablaColumnas.map((_, j) => (
+                              <td key={j} className="px-2 py-1.5 text-center text-slate-300 border-r border-slate-100 last:border-r-0">—</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 

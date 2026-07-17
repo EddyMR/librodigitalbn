@@ -3,7 +3,7 @@
 // ============================================================
 
 export type RolUsuario = 'alumno' | 'catequista' | 'admin_colegio'
-export type TipoHoja = 'lectura' | 'escritura_libre' | 'escritura_imagen' | 'foto' | 'audio' | 'cuestionario' | 'multimedia'
+export type TipoHoja = 'lectura' | 'escritura_libre' | 'escritura_imagen' | 'foto' | 'audio' | 'cuestionario' | 'multimedia' | 'tabla'
 export type EstadoEntrega = 'borrador' | 'entregado'
 
 export interface Colegio {
@@ -89,6 +89,9 @@ export interface MediaItem {
 
 export interface HojaConfig {
   preguntas?: string[]
+  // tabla activity
+  filas?: string[]
+  columnas?: string[]
   // multimedia (lista de audios/videos, en el orden en que se agregaron)
   medios?: MediaItem[]
   // legacy: hojas creadas antes del soporte multi-elemento (un solo audio/video)
@@ -133,6 +136,7 @@ export interface EntregaContenido {
   foto_url?: string                     // foto
   audio_url?: string                    // audio
   respuestas?: string[]                 // cuestionario: indexed by pregunta order
+  tabla?: string[][]                    // tabla: [filaIndex][columnaIndex]
 }
 
 export interface Entrega {

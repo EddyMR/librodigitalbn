@@ -238,6 +238,38 @@ export default async function AlumnoDetallePage({ params }: Props) {
                               ))}
                             </div>
                           )}
+                          {entrega && entrega.contenido?.tabla && hoja.tipo === 'tabla' && (() => {
+                            const filas: string[] = (hoja as any).config?.filas ?? []
+                            const columnas: string[] = (hoja as any).config?.columnas ?? []
+                            const tabla: string[][] = entrega.contenido.tabla
+                            if (filas.length === 0 || columnas.length === 0) return null
+                            return (
+                              <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200">
+                                <table className="w-full border-collapse text-xs" style={{ minWidth: `${columnas.length * 80 + 80}px` }}>
+                                  <thead>
+                                    <tr>
+                                      <th className="bg-brand-600 px-2 py-1.5 text-left border-r border-brand-500 w-20"></th>
+                                      {columnas.map((col: string, j: number) => (
+                                        <th key={j} className="bg-brand-600 text-white px-2 py-1.5 text-center font-semibold border-r border-brand-500 last:border-r-0">{col}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {filas.map((fila: string, i: number) => (
+                                      <tr key={i} className="border-t border-slate-100">
+                                        <td className="bg-slate-50 px-2 py-1.5 font-semibold text-slate-700 border-r border-slate-200">{fila}</td>
+                                        {columnas.map((_: string, j: number) => (
+                                          <td key={j} className="px-2 py-1.5 text-slate-700 border-r border-slate-100 last:border-r-0 align-top whitespace-pre-wrap">
+                                            {tabla[i]?.[j] || <span className="text-slate-300 italic">—</span>}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )
+                          })()}
 
                           {entrega?.fecha_entrega && (
                             <p className="text-xs text-slate-400 mt-1">

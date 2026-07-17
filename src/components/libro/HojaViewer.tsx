@@ -42,6 +42,9 @@ export default function HojaViewer({
   const [respuestas, setRespuestas] = useState<string[]>(
     entregaExistente?.contenido?.respuestas ?? []
   )
+  const [tablaRespuestas, setTablaRespuestas] = useState<string[][]>(
+    entregaExistente?.contenido?.tabla ?? []
+  )
 
   // ── Media states ─────────────────────────────────────────────
   const [fotoUrl, setFotoUrl] = useState(entregaExistente?.contenido?.foto_url ?? '')
@@ -81,6 +84,8 @@ export default function HojaViewer({
   const supabase = createClient()
 
   const preguntas = hoja.config?.preguntas ?? []
+  const tablaFilas = hoja.config?.filas ?? []
+  const tablaColumnas = hoja.config?.columnas ?? []
 
   // Si hay una entrega pendiente en la cola offline para esta hoja, mostrar estado offline al montar
   useEffect(() => {
@@ -166,6 +171,7 @@ export default function HojaViewer({
       case 'audio':            return audioUrl.length > 0
       case 'cuestionario':     return respuestas.some(r => r.trim().length > 0)
       case 'multimedia':       return texto.trim().length > 0
+      case 'tabla':            return tablaRespuestas.some(row => row.some(cell => cell.trim().length > 0))
       default:                 return false
     }
   })()
@@ -213,6 +219,7 @@ export default function HojaViewer({
     else if (hoja.tipo === 'audio')       contenido = { audio_url: audioUrl }
     else if (hoja.tipo === 'cuestionario') contenido = { respuestas }
     else if (hoja.tipo === 'multimedia')  contenido = { texto }
+    else if (hoja.tipo === 'tabla')       contenido = { tabla: tablaRespuestas }
 
     const now = new Date().toISOString()
     const upsertData = {
@@ -246,7 +253,7 @@ export default function HojaViewer({
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2500)
     return true
-  }, [alumnoId, hoja.id, hoja.tipo, texto, zonasTexto, fotoUrl, audioUrl, respuestas, dibujoUrl])
+  }, [alumnoId, hoja.id, hoja.tipo, texto, zonasTexto, fotoUrl, audioUrl, respuestas, dibujoUrl, tablaRespuestas])
 
   // Keep a ref to the latest save so canvas timer always calls the fresh closure
   const saveRef = useRef(save)
@@ -259,7 +266,7 @@ export default function HojaViewer({
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => save(false), AUTOSAVE_MS)
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-  }, [texto, zonasTexto, fotoUrl, audioUrl, respuestas])
+  }, [texto, zonasTexto, fotoUrl, audioUrl, respuestas, tablaRespuestas])
 
   // ── Submit ───────────────────────────────────────────────────
   async function handleEntregar() {
@@ -346,6 +353,17 @@ export default function HojaViewer({
     setRespuestas(prev => {
       const next = [...prev]
       next[i] = valor
+      return next
+    })
+  }
+
+  // ── Tabla helpers ─────────────────────────────────────────────
+  function setTablaCell(filaIdx: number, colIdx: number, valor: string) {
+    setTablaRespuestas(prev => {
+      const next = prev.map(row => [...row])
+      while (next.length <= filaIdx) next.push([])
+      while (next[filaIdx].length <= colIdx) next[filaIdx].push('')
+      next[filaIdx][colIdx] = valor
       return next
     })
   }
@@ -847,6 +865,67 @@ export default function HojaViewer({
               />
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Tabla ────────────────────────────────────────────── */}
+      {hoja.tipo === 'tabla' && alumnoId && tablaFilas.length > 0 && tablaColumnas.length > 0 && (
+        <div className="px-4 pt-5 pb-3">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-2xl bg-teal-100 flex items-center justify-center flex-shrink-0">
+              <span className="text-base">📊</span>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-slate-900 text-sm leading-tight">Completa la tabla</p>
+              <p className="text-xs text-slate-400 mt-0.5">Se guarda automáticamente</p>
+            </div>
+            <SaveIndicator status={saveStatus} />
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="w-full border-collapse" style={{ minWidth: `${tablaColumnas.length * 100 + 96}px` }}>
+              <thead>
+                <tr>
+                  <th className="bg-brand-600 px-3 py-2.5 text-left w-24 border-r border-brand-500"></th>
+                  {tablaColumnas.map((col, j) => (
+                    <th key={j} className="bg-brand-600 text-white px-3 py-2.5 text-center text-xs font-bold border-r border-brand-500 last:border-r-0">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tablaFilas.map((fila, i) => (
+                  <tr key={i} className="border-t border-slate-100">
+                    <td className={cn(
+                      'px-3 py-2 text-xs font-bold border-r border-slate-200 align-middle',
+                      estado === 'entregado' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-50 text-slate-700'
+                    )}>
+                      {fila}
+                    </td>
+                    {tablaColumnas.map((_, j) => (
+                      <td key={j} className="p-1.5 border-r border-slate-100 last:border-r-0 align-top">
+                        <textarea
+                          value={tablaRespuestas[i]?.[j] ?? ''}
+                          onChange={e => setTablaCell(i, j, e.target.value)}
+                          rows={2}
+                          placeholder="..."
+                          className={cn(
+                            'w-full px-2.5 py-2 rounded-xl border text-slate-900 text-sm',
+                            'placeholder:text-slate-200 resize-none transition-all leading-snug',
+                            'focus:outline-none min-h-[52px]',
+                            estado === 'entregado'
+                              ? 'border-emerald-200 bg-emerald-50/40 focus:border-emerald-400'
+                              : 'border-slate-100 bg-slate-50 focus:border-brand-400 focus:bg-white focus:shadow-sm'
+                          )}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
