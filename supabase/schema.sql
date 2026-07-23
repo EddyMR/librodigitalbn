@@ -31,8 +31,10 @@ create type tipo_hoja as enum (
   'foto',
   'audio',
   'cuestionario',
-  'multimedia'
+  'multimedia',
+  'tabla'
 );
+-- Migration: ALTER TYPE tipo_hoja ADD VALUE IF NOT EXISTS 'tabla';
 
 create type estado_entrega as enum ('borrador', 'entregado');
 

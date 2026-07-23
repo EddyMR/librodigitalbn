@@ -6,6 +6,45 @@ import { Modal, Toast, Confirm } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
 
+// Uploads file-backed media items directly to Supabase via signed URL,
+// bypassing Vercel's 4.5 MB request body limit. Returns updated items with
+// source='existing' so they are treated as already-uploaded in processMedios.
+async function preUploadMediaItems(
+  items: MediaFormItem[],
+  folder: string
+): Promise<MediaFormItem[]> {
+  return Promise.all(
+    items.map(async (item): Promise<MediaFormItem> => {
+      if (item.source !== 'file' || !item.file) return item
+
+      // 1. Request signed upload URL from server
+      const signRes = await fetch('/api/admin/upload-media', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: item.file.name,
+          contentType: item.file.type,
+          folder,
+        }),
+      })
+      if (!signRes.ok) return item // keep as-is; processMedios will skip it
+
+      const { signedUrl, publicUrl } = await signRes.json()
+      if (!signedUrl || !publicUrl) return item
+
+      // 2. PUT directly to Supabase (no Vercel size limit)
+      const upRes = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': item.file.type },
+        body: item.file,
+      })
+      if (!upRes.ok) return item
+
+      return { ...item, source: 'existing' as const, url: publicUrl, file: undefined }
+    })
+  )
+}
+
 async function resizeImage(file: File, maxDim = 2000, quality = 0.92): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new window.Image()
@@ -308,11 +347,17 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
         fd.append('file', resized, 'hoja.jpg')
       }
 
+      // Pre-upload media files directly to Supabase (avoids Vercel 4.5 MB body limit)
+      let finalEditMediaItems = editMediaItems
+      if (editForm.tipo === 'multimedia' && editMediaItems.some(m => m.source === 'file' && m.file)) {
+        finalEditMediaItems = await preUploadMediaItems(editMediaItems, `libros/${libroId}/${bloqueId}`)
+      }
+
       const config: Record<string, unknown> = {}
       if (editForm.tipo === 'cuestionario') {
         config.preguntas = editPreguntas
       } else if (editForm.tipo === 'multimedia') {
-        appendMediosMeta(fd, editMediaItems)
+        appendMediosMeta(fd, finalEditMediaItems)
       } else if (editForm.tipo === 'tabla') {
         config.filas = editTablaFilas
         config.columnas = editTablaColumnas
@@ -388,6 +433,12 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
 
       const resized = await resizeImage(imageFile)
 
+      // Pre-upload media files directly to Supabase (avoids Vercel 4.5 MB body limit)
+      let finalMediaItems = mediaItems
+      if (newHojaData.tipo === 'multimedia' && mediaItems.some(m => m.source === 'file' && m.file)) {
+        finalMediaItems = await preUploadMediaItems(mediaItems, `libros/${libro.id}/${bloqueId}`)
+      }
+
       const formData = new FormData()
       formData.append('file', resized, 'hoja.jpg')
       formData.append('bloque_id', bloqueId)
@@ -399,7 +450,7 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
         formData.append('config', JSON.stringify({ preguntas }))
       }
       if (newHojaData.tipo === 'multimedia') {
-        appendMediosMeta(formData, mediaItems)
+        appendMediosMeta(formData, finalMediaItems)
       }
       if (newHojaData.tipo === 'tabla') {
         formData.append('config', JSON.stringify({ filas: tablaFilas, columnas: tablaColumnas }))
