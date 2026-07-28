@@ -40,7 +40,7 @@ export default function HojaViewer({
     entregaExistente?.contenido?.zonas ?? {}
   )
   const [respuestas, setRespuestas] = useState<string[]>(
-    entregaExistente?.contenido?.respuestas ?? []
+    (entregaExistente?.contenido?.respuestas ?? []).map(r => r ?? '')
   )
   const [tablaRespuestas, setTablaRespuestas] = useState<string[][]>(
     entregaExistente?.contenido?.tabla ?? []
@@ -169,9 +169,9 @@ export default function HojaViewer({
       case 'escritura_imagen': return canvasHasContent
       case 'foto':             return fotoUrl.length > 0
       case 'audio':            return audioUrl.length > 0
-      case 'cuestionario':     return respuestas.some(r => r.trim().length > 0)
+      case 'cuestionario':     return respuestas.some(r => (r ?? '').trim().length > 0)
       case 'multimedia':       return texto.trim().length > 0
-      case 'tabla':            return tablaRespuestas.some(row => row.some(cell => cell.trim().length > 0))
+      case 'tabla':            return tablaRespuestas.some(row => row.some(cell => (cell ?? '').trim().length > 0))
       default:                 return false
     }
   })()
@@ -217,9 +217,9 @@ export default function HojaViewer({
     }
     else if (hoja.tipo === 'foto')        contenido = { foto_url: fotoUrl }
     else if (hoja.tipo === 'audio')       contenido = { audio_url: audioUrl }
-    else if (hoja.tipo === 'cuestionario') contenido = { respuestas }
+    else if (hoja.tipo === 'cuestionario') contenido = { respuestas: respuestas.map(r => r ?? '') }
     else if (hoja.tipo === 'multimedia')  contenido = { texto }
-    else if (hoja.tipo === 'tabla')       contenido = { tabla: tablaRespuestas }
+    else if (hoja.tipo === 'tabla')       contenido = { tabla: tablaRespuestas.map(row => row.map(c => c ?? '')) }
 
     const now = new Date().toISOString()
     const upsertData = {
