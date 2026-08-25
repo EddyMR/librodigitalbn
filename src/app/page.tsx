@@ -20,12 +20,13 @@ export default async function HomePage() {
       {/* ── Centered column (full width on mobile, capped on desktop) ── */}
       <div className="w-full mx-auto flex flex-col flex-1 sm:max-w-sm sm:justify-center sm:py-12">
 
-        {/* ── Photo collage – three vertical ovals ─────────────── */}
-        <div className="flex items-end justify-center gap-2 pt-10 px-4">
-          {/* Left oval – shorter, bottom-aligned */}
+        {/* ── Photo collage – tall ovals bleeding from top edge ─── */}
+        {/* overflow-hidden clips the tops, items-end aligns bottoms, marginBottom staggers heights */}
+        <div className="flex items-end justify-center gap-2 overflow-hidden" style={{ height: 300 }}>
+          {/* Left oval – ends 40px above bottom */}
           <div
             className="overflow-hidden flex-shrink-0"
-            style={{ width: 108, height: 170, borderRadius: 999 }}
+            style={{ width: 106, height: 460, borderRadius: 999, marginBottom: 40 }}
           >
             <img
               src="/images/home-1.jpg"
@@ -34,10 +35,10 @@ export default async function HomePage() {
             />
           </div>
 
-          {/* Middle oval – tallest */}
+          {/* Middle oval – reaches the bottom edge */}
           <div
             className="overflow-hidden flex-shrink-0"
-            style={{ width: 116, height: 220, borderRadius: 999 }}
+            style={{ width: 114, height: 500, borderRadius: 999, marginBottom: 0 }}
           >
             <img
               src="/images/home-2.jpg"
@@ -46,10 +47,10 @@ export default async function HomePage() {
             />
           </div>
 
-          {/* Right oval – medium */}
+          {/* Right oval – ends 20px above bottom */}
           <div
             className="overflow-hidden flex-shrink-0"
-            style={{ width: 108, height: 190, borderRadius: 999 }}
+            style={{ width: 106, height: 480, borderRadius: 999, marginBottom: 20 }}
           >
             <img
               src="/images/home-3.jpg"
