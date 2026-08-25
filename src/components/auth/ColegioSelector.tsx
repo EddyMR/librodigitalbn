@@ -1,5 +1,7 @@
 'use client'
 
+const avenir = "'Avenir Next', 'Avenir', 'Nunito', system-ui, sans-serif"
+
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronRight, ChevronDown, Search } from 'lucide-react'
@@ -58,11 +60,11 @@ export default function ColegioSelector({ colegios }: Props) {
         <button
           onClick={() => setOpen(o => !o)}
           className="w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-opacity active:opacity-80"
-          style={{ backgroundColor: '#1c3e70' }}
+          style={{ backgroundColor: '#1c3e70', fontFamily: avenir }}
         >
           <span
             className="text-sm truncate pr-3"
-            style={{ color: selected ? '#fff' : 'rgba(255,255,255,0.55)' }}
+            style={{ color: selected ? '#fff' : 'rgba(255,255,255,0.55)', fontFamily: avenir }}
           >
             {selected ? selected.nombre : 'Selecciona tu Colegio'}
           </span>
@@ -130,6 +132,7 @@ export default function ColegioSelector({ colegios }: Props) {
           backgroundColor: '#ef8532',
           opacity: selected ? 1 : 0.45,
           cursor: selected ? 'pointer' : 'not-allowed',
+          fontFamily: avenir,
         }}
       >
         continuar
