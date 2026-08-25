@@ -1,6 +1,6 @@
 'use client'
 
-const avenir = "'Avenir Next', 'Avenir', 'Nunito', system-ui, sans-serif"
+const avenir = "Avenir, 'Avenir Next', system-ui, sans-serif"
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
