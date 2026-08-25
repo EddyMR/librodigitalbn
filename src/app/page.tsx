@@ -21,41 +21,29 @@ export default async function HomePage() {
       <div className="w-full mx-auto flex flex-col flex-1 sm:max-w-sm sm:justify-center sm:py-12">
 
         {/* ── Photo collage – tall ovals from top edge ─────────── */}
-        <div className="flex items-end justify-center gap-2 overflow-hidden" style={{ height: 300 }}>
-          {/* Left oval */}
+        <div className="flex items-end justify-center gap-2 overflow-hidden" style={{ height: 260 }}>
+          {/* Left oval – 2:1 ratio */}
           <div
-            className="flex-shrink-0 overflow-hidden flex items-center justify-center"
-            style={{ width: 130, height: 420, borderRadius: 999, marginBottom: 40, backgroundColor: '#32383c' }}
+            className="flex-shrink-0 overflow-hidden"
+            style={{ width: 142, height: 320, borderRadius: 999, marginBottom: 35 }}
           >
-            <img
-              src="/images/home-1.jpg"
-              alt=""
-              style={{ width: '100%', height: 'auto', display: 'block', flexShrink: 0 }}
-            />
+            <img src="/images/home-1.jpg" alt="" className="w-full h-full object-cover object-center" />
           </div>
 
-          {/* Middle oval – tallest */}
+          {/* Middle oval – tallest, 2:1 ratio */}
           <div
-            className="flex-shrink-0 overflow-hidden flex items-center justify-center"
-            style={{ width: 138, height: 480, borderRadius: 999, backgroundColor: '#32383c' }}
+            className="flex-shrink-0 overflow-hidden"
+            style={{ width: 150, height: 380, borderRadius: 999 }}
           >
-            <img
-              src="/images/home-2.jpg"
-              alt=""
-              style={{ width: '100%', height: 'auto', display: 'block', flexShrink: 0 }}
-            />
+            <img src="/images/home-2.jpg" alt="" className="w-full h-full object-cover object-center" />
           </div>
 
-          {/* Right oval */}
+          {/* Right oval – 2:1 ratio */}
           <div
-            className="flex-shrink-0 overflow-hidden flex items-center justify-center"
-            style={{ width: 130, height: 450, borderRadius: 999, marginBottom: 20, backgroundColor: '#32383c' }}
+            className="flex-shrink-0 overflow-hidden"
+            style={{ width: 142, height: 348, borderRadius: 999, marginBottom: 18 }}
           >
-            <img
-              src="/images/home-3.jpg"
-              alt=""
-              style={{ width: '100%', height: 'auto', display: 'block', flexShrink: 0 }}
-            />
+            <img src="/images/home-3.jpg" alt="" className="w-full h-full object-cover object-center" />
           </div>
         </div>
 
