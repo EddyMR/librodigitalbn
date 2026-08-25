@@ -31,8 +31,8 @@ export default async function LoginPage({ params }: Props) {
 
   return (
     <main
-      className="min-h-dvh flex flex-col bg-white"
-      style={{ fontFamily: avenir }}
+      className="min-h-dvh flex flex-col"
+      style={{ backgroundColor: '#f1f1f3', fontFamily: avenir }}
     >
       <div className="w-full mx-auto flex flex-col flex-1 sm:max-w-sm">
 
