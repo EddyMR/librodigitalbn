@@ -3,6 +3,8 @@ import { createServerSupabaseClient } from '@/lib/supabase'
 import LoginForm from '@/components/auth/LoginForm'
 import type { Metadata } from 'next'
 
+const avenir = "Avenir, 'Avenir Next', system-ui, sans-serif"
+
 interface Props {
   params: Promise<{ colegio: string }>
 }
@@ -28,24 +30,59 @@ export default async function LoginPage({ params }: Props) {
   if (!colegio) notFound()
 
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-center px-4 py-8 bg-gradient-to-b from-brand-50 to-white">
-      <div className="w-full max-w-sm space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-1">
-          <a href="/" className="inline-block text-brand-400 text-sm hover:text-brand-600 mb-2">
+    <main
+      className="min-h-dvh flex flex-col bg-white"
+      style={{ fontFamily: avenir }}
+    >
+      <div className="w-full mx-auto flex flex-col flex-1 sm:max-w-sm">
+
+        {/* ── Back link ── */}
+        <div className="px-5 pt-5 pb-2">
+          <a
+            href="/"
+            className="text-sm"
+            style={{ color: '#055e97', fontFamily: avenir }}
+          >
             ← Cambiar colegio
           </a>
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-brand-600 flex items-center justify-center shadow-glow">
-            <span className="text-3xl">✝</span>
-          </div>
-          <h1 className="text-xl font-bold text-slate-900 pt-2">{colegio.nombre}</h1>
-          <p className="text-sm text-slate-500">Inicia sesión para continuar</p>
         </div>
 
-        {/* Login form */}
-        <div className="card p-6">
-          <LoginForm codigoColegio={colegio.codigo} />
+        {/* ── Branding ── */}
+        <div className="px-5 pb-4 text-center">
+          <h1
+            className="leading-none lowercase tracking-tight"
+            style={{ fontSize: 52, fontWeight: 900, color: '#1a3451', fontFamily: avenir }}
+          >
+            teresiano
+          </h1>
+          <p className="text-sm mt-1 leading-snug" style={{ color: '#555', fontFamily: avenir }}>
+            <span className="font-bold italic">Buena Nueva</span>
+            {' '}programa de formación{' '}
+            <span className="font-bold">preparatoria</span>
+          </p>
         </div>
+
+        {/* ── Colegio name ── */}
+        <div className="px-5 pb-5 text-center">
+          <p
+            className="font-bold text-lg leading-tight"
+            style={{ color: '#1a3451', fontFamily: avenir }}
+          >
+            {colegio.nombre}
+          </p>
+          <p className="text-sm mt-0.5" style={{ color: '#888', fontFamily: avenir }}>
+            Inicia sesión para continuar
+          </p>
+        </div>
+
+        {/* ── Form card ── */}
+        <div className="mx-4 flex-1">
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5">
+            <LoginForm codigoColegio={colegio.codigo} />
+          </div>
+        </div>
+
+        <div className="h-8" />
       </div>
     </main>
   )
