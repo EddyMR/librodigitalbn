@@ -26,36 +26,36 @@ export default async function HomePage() {
           {/* Left oval – ends 40px above bottom */}
           <div
             className="overflow-hidden flex-shrink-0"
-            style={{ width: 106, height: 460, borderRadius: 999, marginBottom: 40 }}
+            style={{ width: 106, height: 460, borderRadius: 999, marginBottom: 40, backgroundColor: '#32383c' }}
           >
             <img
               src="/images/home-1.jpg"
               alt=""
-              className="w-full h-full object-cover object-top"
+              className="w-full h-full object-contain"
             />
           </div>
 
           {/* Middle oval – reaches the bottom edge */}
           <div
             className="overflow-hidden flex-shrink-0"
-            style={{ width: 114, height: 500, borderRadius: 999, marginBottom: 0 }}
+            style={{ width: 114, height: 500, borderRadius: 999, marginBottom: 0, backgroundColor: '#32383c' }}
           >
             <img
               src="/images/home-2.jpg"
               alt=""
-              className="w-full h-full object-cover object-center"
+              className="w-full h-full object-contain"
             />
           </div>
 
           {/* Right oval – ends 20px above bottom */}
           <div
             className="overflow-hidden flex-shrink-0"
-            style={{ width: 106, height: 480, borderRadius: 999, marginBottom: 20 }}
+            style={{ width: 106, height: 480, borderRadius: 999, marginBottom: 20, backgroundColor: '#32383c' }}
           >
             <img
               src="/images/home-3.jpg"
               alt=""
-              className="w-full h-full object-cover object-top"
+              className="w-full h-full object-contain"
             />
           </div>
         </div>
