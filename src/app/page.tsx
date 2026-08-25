@@ -20,42 +20,41 @@ export default async function HomePage() {
       {/* ── Centered column (full width on mobile, capped on desktop) ── */}
       <div className="w-full mx-auto flex flex-col flex-1 sm:max-w-sm sm:justify-center sm:py-12">
 
-        {/* ── Photo collage – tall ovals bleeding from top edge ─── */}
-        {/* overflow-hidden clips the tops, items-end aligns bottoms, marginBottom staggers heights */}
+        {/* ── Photo collage – tall ovals from top edge ─────────── */}
         <div className="flex items-end justify-center gap-2 overflow-hidden" style={{ height: 300 }}>
-          {/* Left oval – ends 40px above bottom */}
+          {/* Left oval */}
           <div
             className="overflow-hidden flex-shrink-0"
-            style={{ width: 106, height: 460, borderRadius: 999, marginBottom: 40, backgroundColor: '#32383c' }}
+            style={{ width: 130, height: 420, borderRadius: 999, marginBottom: 40 }}
           >
             <img
               src="/images/home-1.jpg"
               alt=""
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover object-center"
             />
           </div>
 
-          {/* Middle oval – reaches the bottom edge */}
+          {/* Middle oval – tallest */}
           <div
             className="overflow-hidden flex-shrink-0"
-            style={{ width: 114, height: 500, borderRadius: 999, marginBottom: 0, backgroundColor: '#32383c' }}
+            style={{ width: 138, height: 480, borderRadius: 999, marginBottom: 0 }}
           >
             <img
               src="/images/home-2.jpg"
               alt=""
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover object-center"
             />
           </div>
 
-          {/* Right oval – ends 20px above bottom */}
+          {/* Right oval */}
           <div
             className="overflow-hidden flex-shrink-0"
-            style={{ width: 106, height: 480, borderRadius: 999, marginBottom: 20, backgroundColor: '#32383c' }}
+            style={{ width: 130, height: 450, borderRadius: 999, marginBottom: 20 }}
           >
             <img
               src="/images/home-3.jpg"
               alt=""
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover object-center"
             />
           </div>
         </div>
