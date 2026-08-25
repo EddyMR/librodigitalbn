@@ -20,12 +20,12 @@ export default async function HomePage() {
       {/* ── Centered column (full width on mobile, capped on desktop) ── */}
       <div className="w-full mx-auto flex flex-col flex-1 sm:max-w-sm sm:justify-center sm:py-12">
 
-        {/* ── Photo collage ─────────────────────────────────────── */}
-        <div className="flex items-end justify-center gap-2.5 pt-10 px-4">
-          {/* Left – circle */}
+        {/* ── Photo collage – three vertical ovals ─────────────── */}
+        <div className="flex items-end justify-center gap-2 pt-10 px-4">
+          {/* Left oval – shorter, bottom-aligned */}
           <div
-            className="overflow-hidden flex-shrink-0 self-end"
-            style={{ width: 112, height: 112, borderRadius: '50%' }}
+            className="overflow-hidden flex-shrink-0"
+            style={{ width: 108, height: 170, borderRadius: 999 }}
           >
             <img
               src="/images/home-1.jpg"
@@ -34,10 +34,10 @@ export default async function HomePage() {
             />
           </div>
 
-          {/* Middle – tall pill */}
+          {/* Middle oval – tallest */}
           <div
             className="overflow-hidden flex-shrink-0"
-            style={{ width: 124, height: 210, borderRadius: 80 }}
+            style={{ width: 116, height: 220, borderRadius: 999 }}
           >
             <img
               src="/images/home-2.jpg"
@@ -46,10 +46,10 @@ export default async function HomePage() {
             />
           </div>
 
-          {/* Right – rounded rect */}
+          {/* Right oval – medium */}
           <div
-            className="overflow-hidden flex-shrink-0 self-end"
-            style={{ width: 134, height: 168, borderRadius: 28 }}
+            className="overflow-hidden flex-shrink-0"
+            style={{ width: 108, height: 190, borderRadius: 999 }}
           >
             <img
               src="/images/home-3.jpg"
