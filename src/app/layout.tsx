@@ -29,6 +29,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <head>
+        <link rel="preload" href="/fonts/Avenir.ttc" as="font" type="font/ttf" crossOrigin="anonymous" />
+      </head>
       <body className="font-sans min-h-dvh flex flex-col">
         <PWAInstallBanner />
         {children}

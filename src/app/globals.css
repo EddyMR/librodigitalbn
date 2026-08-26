@@ -4,7 +4,8 @@
 
 @font-face {
   font-family: 'Avenir';
-  src: url('/fonts/Avenir.ttc') format('truetype');
+  src: url('/fonts/Avenir.ttc') format('collection'),
+       url('/fonts/Avenir.ttc') format('truetype');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
