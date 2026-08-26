@@ -291,15 +291,15 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch('/api/admin/upload-portada', { method: 'POST', body: fd })
-      const { public_url } = await res.json()
-      if (!public_url) throw new Error('Sin URL')
+      const { url } = await res.json()
+      if (!url) throw new Error('Sin URL')
       const patch = await fetch(`/api/admin/libros/${libroId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ portada_url: public_url }),
+        body: JSON.stringify({ portada_url: url }),
       })
       if (!patch.ok) throw new Error('No se pudo guardar')
-      setPortadaUrl(public_url)
+      setPortadaUrl(url)
       setToast({ msg: 'Portada actualizada', type: 'success' })
     } catch {
       setToast({ msg: 'Error al subir portada', type: 'error' })
