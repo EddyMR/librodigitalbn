@@ -77,9 +77,9 @@ export default async function LibroPage({ params }: Props) {
 
         <div className="flex gap-4 items-center">
           {libro.portada_url ? (
-            <Image src={libro.portada_url} alt={libro.titulo} width={64} height={84} className="rounded-xl shadow-lg object-cover" />
+            <Image src={libro.portada_url} alt={libro.titulo} width={80} height={106} className="rounded-xl shadow-lg object-cover" />
           ) : (
-            <div className="w-16 h-20 rounded-xl bg-brand-500 flex items-center justify-center">
+            <div className="rounded-xl bg-brand-500 flex items-center justify-center" style={{ width: 80, height: 106 }}>
               <BookOpen className="w-7 h-7 text-brand-200" />
             </div>
           )}

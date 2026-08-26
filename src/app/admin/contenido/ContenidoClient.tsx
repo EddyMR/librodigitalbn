@@ -47,9 +47,9 @@ export default function ContenidoClient({ initialLibros, initialBloquesPerLibro 
       {libros.map(libro => (
         <div key={libro.id} className="card overflow-hidden">
           <div className="flex items-center gap-3 p-4">
-            <div className="flex-shrink-0 overflow-hidden rounded-xl bg-brand-100 flex items-center justify-center" style={{ width: 48, height: 64 }}>
+            <div className="flex-shrink-0 overflow-hidden rounded-xl bg-brand-100 flex items-center justify-center" style={{ width: 56, height: 76 }}>
               {libro.portada_url ? (
-                <Image src={libro.portada_url} alt={libro.titulo} width={48} height={64} className="object-cover w-full h-full" />
+                <Image src={libro.portada_url} alt={libro.titulo} width={56} height={76} className="object-cover w-full h-full" />
               ) : (
                 <BookOpen className="w-5 h-5 text-brand-600" />
               )}
