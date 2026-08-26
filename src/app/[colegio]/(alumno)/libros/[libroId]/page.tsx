@@ -7,6 +7,8 @@ import { ArrowLeft, BookOpen, CheckCircle2, Circle, Lock } from 'lucide-react'
 import { porcentaje } from '@/lib/utils'
 import type { Metadata } from 'next'
 
+export const dynamic = 'force-dynamic'
+
 interface Props {
   params: Promise<{ colegio: string; libroId: string }>
 }
@@ -77,9 +79,9 @@ export default async function LibroPage({ params }: Props) {
 
         <div className="flex gap-4 items-center">
           {libro.portada_url ? (
-            <Image src={libro.portada_url} alt={libro.titulo} width={80} height={106} className="rounded-xl shadow-lg object-cover" />
+            <Image src={libro.portada_url} alt={libro.titulo} width={96} height={128} className="rounded-xl shadow-lg object-cover" />
           ) : (
-            <div className="rounded-xl bg-brand-500 flex items-center justify-center" style={{ width: 80, height: 106 }}>
+            <div className="rounded-xl bg-brand-500 flex items-center justify-center" style={{ width: 96, height: 128 }}>
               <BookOpen className="w-7 h-7 text-brand-200" />
             </div>
           )}
