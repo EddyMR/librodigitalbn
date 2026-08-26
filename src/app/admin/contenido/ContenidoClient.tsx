@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { BookOpen } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 
-interface Libro { id: string; titulo: string; descripcion: string | null; activo: boolean }
+interface Libro { id: string; titulo: string; descripcion: string | null; activo: boolean; portada_url?: string | null }
 
 interface Props {
   initialLibros: Libro[]
@@ -46,8 +47,12 @@ export default function ContenidoClient({ initialLibros, initialBloquesPerLibro 
       {libros.map(libro => (
         <div key={libro.id} className="card overflow-hidden">
           <div className="flex items-center gap-3 p-4">
-            <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-brand-600" />
+            <div className="flex-shrink-0 overflow-hidden rounded-xl bg-brand-100 flex items-center justify-center" style={{ width: 48, height: 64 }}>
+              {libro.portada_url ? (
+                <Image src={libro.portada_url} alt={libro.titulo} width={48} height={64} className="object-cover w-full h-full" />
+              ) : (
+                <BookOpen className="w-5 h-5 text-brand-600" />
+              )}
             </div>
             <div className="flex-1">
               <p className="font-bold text-slate-900">{libro.titulo}</p>

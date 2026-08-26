@@ -115,9 +115,9 @@ export default async function AlumnoInicio({ params }: Props) {
                   href={`/${codigo}/libros/${libro.id}`}
                   className="card card-hover p-4 flex items-center gap-4 block"
                 >
-                  <div className="w-14 h-18 rounded-xl bg-brand-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                  <div className="flex-shrink-0 overflow-hidden rounded-xl bg-brand-100 flex items-center justify-center" style={{ width: 60, height: 80 }}>
                     {libro.portada_url ? (
-                      <Image src={libro.portada_url} alt={libro.titulo} width={56} height={72} className="object-cover w-full h-full" />
+                      <Image src={libro.portada_url} alt={libro.titulo} width={60} height={80} className="object-cover w-full h-full" />
                     ) : (
                       <BookOpen className="w-6 h-6 text-brand-400" />
                     )}

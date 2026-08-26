@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
 
   const [{ data: libros }, { data: bloquesData }] = await Promise.all([
-    admin.from('libros').select('id, titulo, descripcion, activo').order('orden'),
+    admin.from('libros').select('id, titulo, descripcion, activo, portada_url').order('orden'),
     admin.from('bloques').select('id, libro_id').eq('activo', true),
   ])
 

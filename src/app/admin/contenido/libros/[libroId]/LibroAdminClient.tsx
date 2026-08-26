@@ -76,7 +76,7 @@ interface HojaConfig {
 }
 interface Hoja { id: string; titulo?: string; tipo: TipoHoja; imagen_url: string; orden: number; config?: HojaConfig }
 interface Bloque { id: string; titulo: string; descripcion?: string; orden: number; activo: boolean; hojas: Hoja[] }
-interface Libro { id: string; titulo: string; bloques: Bloque[] }
+interface Libro { id: string; titulo: string; portada_url?: string; bloques: Bloque[] }
 
 // ── Multimedia: un solo formulario puede tener varios audios/videos ──
 interface MediaFormItem {
@@ -279,6 +279,35 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
   const [editTablaColumnas, setEditTablaColumnas] = useState<string[]>([])
   const [editNuevaFila, setEditNuevaFila] = useState('')
   const [editNuevaColumna, setEditNuevaColumna] = useState('')
+  // portada del libro
+  const [portadaUrl, setPortadaUrl] = useState<string | null>(libro.portada_url ?? null)
+  const [portadaUploading, setPortadaUploading] = useState(false)
+
+  async function handlePortadaChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPortadaUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/admin/upload-portada', { method: 'POST', body: fd })
+      const { public_url } = await res.json()
+      if (!public_url) throw new Error('Sin URL')
+      const patch = await fetch(`/api/admin/libros/${libroId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portada_url: public_url }),
+      })
+      if (!patch.ok) throw new Error('No se pudo guardar')
+      setPortadaUrl(public_url)
+      setToast({ msg: 'Portada actualizada', type: 'success' })
+    } catch {
+      setToast({ msg: 'Error al subir portada', type: 'error' })
+    } finally {
+      setPortadaUploading(false)
+      e.target.value = ''
+    }
+  }
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -1159,6 +1188,26 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
           </div>
         </Modal>
       )}
+
+      {/* Portada del libro */}
+      <div className="card p-4 mb-5 flex items-center gap-4">
+        <div className="flex-shrink-0 overflow-hidden rounded-xl bg-slate-100 flex items-center justify-center" style={{ width: 72, height: 96 }}>
+          {portadaUrl ? (
+            <Image src={portadaUrl} alt="Portada" width={72} height={96} className="object-cover w-full h-full" />
+          ) : (
+            <BookOpen className="w-7 h-7 text-slate-300" />
+          )}
+        </div>
+        <div className="flex-1">
+          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Portada del libro</p>
+          <label className={cn('btn-secondary text-xs py-1.5 px-3 cursor-pointer inline-flex items-center gap-1.5', portadaUploading && 'opacity-50 pointer-events-none')}>
+            <Camera className="w-3.5 h-3.5" />
+            {portadaUploading ? 'Subiendo...' : portadaUrl ? 'Cambiar portada' : 'Subir portada'}
+            <input type="file" accept="image/*" className="hidden" onChange={handlePortadaChange} disabled={portadaUploading} />
+          </label>
+          {portadaUrl && <p className="text-xs text-green-600 mt-1.5">✓ Portada guardada</p>}
+        </div>
+      </div>
 
       {/* Tabs */}
       <div className="flex rounded-xl bg-slate-100 p-1 mb-6">

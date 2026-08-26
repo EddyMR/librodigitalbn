@@ -18,7 +18,7 @@ export default async function LibroAdminPage({ params }: Props) {
     { data: gruposRaw },
     { data: libroGruposActivos },
   ] = await Promise.all([
-    admin.from('libros').select('id, titulo').eq('id', libroId).single(),
+    admin.from('libros').select('id, titulo, portada_url').eq('id', libroId).single(),
     admin.from('bloques').select('id, titulo, descripcion, orden, activo').eq('libro_id', libroId).eq('activo', true),
     admin.from('grupos').select('id, nombre, colegio_id, colegios(id, nombre, codigo)').eq('activo', true).order('nombre'),
     admin.from('libro_grupos').select('grupo_id').eq('libro_id', libroId).eq('activo', true),
