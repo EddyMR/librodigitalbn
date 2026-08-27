@@ -638,7 +638,7 @@ export default function HojaViewer({
               )}>
                 <Camera className="w-3.5 h-3.5" />
                 Cambiar foto
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFotoChange} disabled={uploadingMedia} />
+                <input type="file" accept="image/*" className="hidden" onChange={handleFotoChange} disabled={uploadingMedia} />
               </label>
             </div>
           ) : (
@@ -662,7 +662,7 @@ export default function HojaViewer({
                   </div>
                 </>
               )}
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFotoChange} disabled={uploadingMedia} />
+              <input type="file" accept="image/*" className="hidden" onChange={handleFotoChange} disabled={uploadingMedia} />
             </label>
           )}
         </div>
