@@ -5,6 +5,7 @@ import { avatarUrl, nombreCompleto, porcentaje } from '@/lib/utils'
 import Image from 'next/image'
 import Link from 'next/link'
 import { BookOpen, ChevronRight, Star } from 'lucide-react'
+import CurrentAvatar from '@/components/shared/CurrentAvatar'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -61,11 +62,9 @@ export default async function AlumnoInicio({ params }: Props) {
   return (
     <div className="space-y-6 px-4 pt-4 pb-24">
       <div className="flex items-center gap-3">
-        <Image
-          src={avatarUrl(perfil.avatar_id)}
-          alt="Avatar"
-          width={52}
-          height={52}
+        <CurrentAvatar
+          serverAvatarId={perfil.avatar_id}
+          size={52}
           className="rounded-2xl"
         />
         <div>

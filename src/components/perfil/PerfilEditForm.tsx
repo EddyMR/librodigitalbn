@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { AVATARES } from '@/types'
 import { Check } from 'lucide-react'
+import { AVATAR_STORAGE_KEY } from '@/components/shared/CurrentAvatar'
 import type { Perfil } from '@/types'
 
 interface FormData { mini_bio: string }
@@ -34,6 +35,7 @@ export default function PerfilEditForm({ perfil }: Props) {
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
+    try { localStorage.setItem(AVATAR_STORAGE_KEY, String(selectedAvatar)) } catch {}
     router.refresh()
   }
 

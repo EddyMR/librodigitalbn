@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth'
 import { avatarUrl, nombreCompleto, labelRol } from '@/lib/utils'
 import Image from 'next/image'
 import PerfilEditForm from '@/components/perfil/PerfilEditForm'
+import CurrentAvatar from '@/components/shared/CurrentAvatar'
 import CambiarContrasenaForm from '@/components/perfil/CambiarContrasenaForm'
 import LogoutButton from '@/components/auth/LogoutButton'
 import type { Metadata } from 'next'
@@ -20,11 +21,9 @@ export default async function PerfilPage({ params }: Props) {
     <div className="space-y-6 px-4 pt-4 pb-24">
       <div className="text-center space-y-3">
         <div className="relative inline-block">
-          <Image
-            src={avatarUrl(perfil.avatar_id)}
-            alt="Tu avatar"
-            width={96}
-            height={96}
+          <CurrentAvatar
+            serverAvatarId={perfil.avatar_id}
+            size={96}
             className="rounded-3xl shadow-card"
           />
         </div>
