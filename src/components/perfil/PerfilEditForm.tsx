@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
@@ -8,22 +9,21 @@ import { AVATARES } from '@/types'
 import { Check } from 'lucide-react'
 import type { Perfil } from '@/types'
 
-interface FormData {
-  mini_bio: string
-}
-
-interface Props {
-  perfil: Perfil
-}
+interface FormData { mini_bio: string }
+interface Props { perfil: Perfil }
 
 export default function PerfilEditForm({ perfil }: Props) {
   const [selectedAvatar, setSelectedAvatar] = useState(perfil.avatar_id)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const router = useRouter()
   const { register, handleSubmit } = useForm<FormData>({
     defaultValues: { mini_bio: perfil.mini_bio ?? '' },
   })
   const supabase = createClient()
+
+  const currentSrc = AVATARES.find(a => a.id === selectedAvatar)?.src
+    ?? `/avatars/avatar-${selectedAvatar}.png`
 
   async function onSubmit(data: FormData) {
     setSaving(true)
@@ -34,14 +34,23 @@ export default function PerfilEditForm({ perfil }: Props) {
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
+    router.refresh()
   }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      {/* Avatar picker */}
+
+      {/* Preview del avatar seleccionado */}
+      <div className="flex justify-center">
+        <div className="relative w-20 h-20 rounded-3xl overflow-hidden shadow-card ring-2 ring-brand-400 ring-offset-2 transition-all">
+          <Image src={currentSrc} alt="Avatar seleccionado" fill className="object-cover" />
+        </div>
+      </div>
+
+      {/* Grid de avatares */}
       <div className="space-y-2">
         <label className="text-sm font-medium text-slate-700">Elige tu personaje</label>
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
           {AVATARES.map(av => (
             <button
               key={av.id}

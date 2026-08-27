@@ -209,8 +209,8 @@ export interface AuthState {
   loading: boolean
 }
 
-// Avatar mapping (10 avatars)
-export const AVATARES = Array.from({ length: 10 }, (_, i) => ({
+// Avatar mapping (11 avatars)
+export const AVATARES = Array.from({ length: 11 }, (_, i) => ({
   id: i + 1,
   src: `/avatars/avatar-${i + 1}.png`,
   nombre: `Personaje ${i + 1}`,
