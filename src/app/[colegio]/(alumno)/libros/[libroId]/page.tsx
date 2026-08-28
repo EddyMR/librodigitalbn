@@ -1,10 +1,12 @@
 import { redirect, notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { createServerSupabaseClient } from '@/lib/supabase'
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase'
 import Link from 'next/link'
+import OfflineLink from '@/components/shared/OfflineLink'
 import Image from 'next/image'
 import { ArrowLeft, BookOpen, CheckCircle2, Circle, Lock } from 'lucide-react'
 import { porcentaje } from '@/lib/utils'
+import BloqueOfflineButton from '@/components/libro/BloqueOfflineButton'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +31,7 @@ export default async function LibroPage({ params }: Props) {
 
   const { data: libroRaw } = await supabase
     .from('libros')
-    .select('*, bloques(id, titulo, descripcion, orden, hojas(id, tipo, orden))')
+    .select('*, bloques(id, titulo, descripcion, orden, hojas(id, tipo, orden, imagen_url))')
     .eq('id', libroId)
     .eq('activo', true)
     .single()
@@ -53,10 +55,11 @@ export default async function LibroPage({ params }: Props) {
 
   if (perfil.rol === 'alumno') {
     const allHojaIds = (libro.bloques ?? []).flatMap((b: any) => (b.hojas ?? []).map((h: any) => h.id))
+    const admin = createAdminClient()
 
     const [{ data: visitas }, { data: entregas }] = await Promise.all([
-      supabase.from('visitas_hojas').select('hoja_id').eq('alumno_id', perfil.id).in('hoja_id', allHojaIds),
-      supabase.from('entregas').select('hoja_id').eq('alumno_id', perfil.id).eq('estado', 'entregado').in('hoja_id', allHojaIds),
+      admin.from('visitas_hojas').select('hoja_id').eq('alumno_id', perfil.id).in('hoja_id', allHojaIds),
+      admin.from('entregas').select('hoja_id').eq('alumno_id', perfil.id).eq('estado', 'entregado').in('hoja_id', allHojaIds),
     ])
 
     visitedIds = new Set(visitas?.map(v => v.hoja_id) ?? [])
@@ -64,8 +67,9 @@ export default async function LibroPage({ params }: Props) {
   }
 
   const allHojas = (libro.bloques ?? []).flatMap((b: any) => b.hojas ?? [])
-  const totalHojas = allHojas.length
-  const visitadas = allHojas.filter((h: any) => visitedIds.has(h.id)).length
+  const lecturaHojas = allHojas.filter((h: any) => h.tipo === 'lectura')
+  const totalHojas = lecturaHojas.length
+  const visitadas = lecturaHojas.filter((h: any) => visitedIds.has(h.id)).length
   const pct = porcentaje(visitadas, totalHojas)
 
   return (
@@ -110,13 +114,14 @@ export default async function LibroPage({ params }: Props) {
       <div className="px-4 -mt-4 space-y-3">
         {(libro.bloques ?? []).map((bloque: any, idx: number) => {
           const hojas = bloque.hojas ?? []
-          const bloqueVisitadas = hojas.filter((h: any) => visitedIds.has(h.id)).length
+          const bloqueLectura = hojas.filter((h: any) => h.tipo === 'lectura')
+          const bloqueVisitadas = bloqueLectura.filter((h: any) => visitedIds.has(h.id)).length
           const bloqueEntregadas = hojas.filter((h: any) => entregaHojaIds.has(h.id)).length
-          const bloquePct = porcentaje(bloqueVisitadas, hojas.length)
+          const bloquePct = porcentaje(bloqueVisitadas, bloqueLectura.length)
           const firstHoja = hojas[0]
 
           return (
-            <Link
+            <OfflineLink
               key={bloque.id}
               href={firstHoja ? `/${codigo}/libros/${libroId}/${bloque.id}/${firstHoja.id}` : '#'}
               className="card card-hover p-4 block space-y-3"
@@ -153,8 +158,15 @@ export default async function LibroPage({ params }: Props) {
                 </div>
 
                 {perfil.rol === 'alumno' && (
-                  <div className="flex-shrink-0 text-right">
+                  <div className="flex-shrink-0 text-right space-y-1.5">
                     <p className="text-xs font-medium text-brand-600">{bloquePct}%</p>
+                    <BloqueOfflineButton
+                      libroId={libroId}
+                      bloqueId={bloque.id}
+                      bloqueTitulo={bloque.titulo}
+                      codigo={codigo}
+                      hojas={(bloque.hojas ?? []).map((h: any) => ({ id: h.id, imagen_url: h.imagen_url ?? null }))}
+                    />
                   </div>
                 )}
               </div>
@@ -165,7 +177,7 @@ export default async function LibroPage({ params }: Props) {
                   <div className="progress-fill" style={{ width: `${bloquePct}%` }} />
                 </div>
               )}
-            </Link>
+            </OfflineLink>
           )
         })}
       </div>

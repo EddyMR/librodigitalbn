@@ -78,6 +78,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icons|avatars|images|manifest.json|sw.js|workbox-.*\\.js).*)',
+    // Los ficheros del service worker deben servirse tal cual: si el middleware
+    // los redirige, importScripts() falla y el SW entero deja de funcionar.
+    '/((?!_next/static|_next/image|favicon\\.ico|apple-icon|icon|avatars|images|fonts|offline\\.html|manifest\\.json|sw\\.js|workbox-.*\\.js|fallback-.*\\.js).*)',
   ],
 }

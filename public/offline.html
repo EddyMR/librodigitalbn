@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buena Nueva</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f8fafc;
+      color: #334155;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      text-align: center;
+    }
+    #offline-msg { display: none; }
+    .icon {
+      width: 72px;
+      height: 72px;
+      background: #fef3c7;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+    }
+    .icon svg { width: 36px; height: 36px; color: #d97706; }
+    h1 { font-size: 1.5rem; font-weight: 700; color: #0f172a; margin-bottom: 0.5rem; }
+    p { font-size: 0.9375rem; color: #64748b; line-height: 1.6; max-width: 320px; margin: 0 auto 0.75rem; }
+    .hint { font-size: 0.875rem; color: #94a3b8; margin-top: 1rem; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 2rem;
+      padding: 0.75rem 1.5rem;
+      background: #4c6ef5;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn:active { opacity: 0.85; }
+    .loading { font-size: 0.9rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <!-- Shown only when offline and no downloaded content -->
+  <div id="offline-msg">
+    <div class="icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23"/>
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+        <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+        <line x1="12" y1="20" x2="12.01" y2="20"/>
+      </svg>
+    </div>
+    <h1>Sin conexión</h1>
+    <p id="msg-text">Para usar la app sin internet, primero debes descargar los bloques mientras tengas conexión.</p>
+    <p class="hint" id="msg-hint">Abre la app con internet, entra a tu libro y toca el botón "Sin conexión" en cada bloque.</p>
+    <a class="btn" id="btn-volver" style="display:none">Volver a mi libro</a>
+    <button class="btn" id="btn-reintentar" onclick="window.location.reload()">Intentar de nuevo</button>
+  </div>
+
+  <p id="loading-msg" class="loading">Cargando…</p>
+
+  <script>
+    (function () {
+      var BOUNCE_KEY = 'offline-entry-bounce';
+
+      // Esta página cumple dos papeles: es el start_url de la PWA (arranque en
+      // frío) y el respaldo de cualquier navegación que falle. En el segundo
+      // caso venimos de otra página de la app, y saltar solos al libro sería
+      // desconcertante: mejor explicar y ofrecer el botón.
+      var fromApp = false;
+      try {
+        fromApp = !!document.referrer &&
+          new URL(document.referrer).origin === window.location.origin;
+      } catch (e) {}
+
+      function showOffline(target) {
+        document.getElementById('loading-msg').style.display = 'none';
+        if (fromApp) {
+          document.getElementById('msg-text').textContent =
+            'Esta página no está descargada, así que no se puede abrir sin internet.';
+          document.getElementById('msg-hint').textContent =
+            'Puedes seguir leyendo lo que sí descargaste.';
+        }
+        if (target) {
+          var volver = document.getElementById('btn-volver');
+          volver.href = target;
+          volver.style.display = 'inline-flex';
+          document.getElementById('btn-reintentar').style.display = 'none';
+        }
+        document.getElementById('offline-msg').style.display = 'block';
+      }
+
+      // Pick a page we can actually open offline. The SW cache is the source of
+      // truth — localStorage only breaks ties, and is ignored when it points at
+      // something no longer cached (cleared data, expired entry, older build).
+      // Preference: last opened libro > any libro page > any hoja page.
+      // Never redirect to a URL that isn't cached: that's a dead end offline.
+      function findCachedTarget() {
+        var saved = null;
+        try { saved = localStorage.getItem('offline-last-book'); } catch (e) {}
+
+        if (!('caches' in window)) return Promise.resolve(saved);
+
+        return caches.open('hoja-pages')
+          .then(function (cache) { return cache.keys(); })
+          .then(function (keys) {
+            var libro = null, hoja = null;
+            for (var i = 0; i < keys.length; i++) {
+              var path;
+              try { path = new URL(keys[i].url).pathname; } catch (e) { continue; }
+              var parts = path.split('/').filter(Boolean);
+              if (parts[1] !== 'libros') continue;
+              if (parts.length === 3) {
+                // /{colegio}/libros/{libroId} — the block list
+                if (saved && path === saved) return saved;
+                if (!libro) libro = path;
+              } else if (parts.length === 5 && !hoja) {
+                // /{colegio}/libros/{libroId}/{bloque}/{hojaId} — the reader
+                hoja = path;
+              }
+            }
+            return libro || hoja;
+          })
+          .catch(function () { return null; });
+      }
+
+      // Arranque en frío con conexión: entregamos el control a la app. Con
+      // guarda, para que una red intermitente (navigator.onLine en true pero
+      // las peticiones fallando) no provoque un ping-pong infinito.
+      if (!fromApp && navigator.onLine) {
+        var last = 0;
+        try { last = parseInt(sessionStorage.getItem(BOUNCE_KEY) || '0', 10) || 0; } catch (e) {}
+        if (Date.now() - last > 10000) {
+          try { sessionStorage.setItem(BOUNCE_KEY, String(Date.now())); } catch (e) {}
+          window.location.replace('/');
+          return;
+        }
+        // We bounced moments ago and ended up back here — the network is lying.
+        // Fall through and treat this as offline.
+      }
+
+      try { sessionStorage.removeItem(BOUNCE_KEY); } catch (e) {}
+
+      findCachedTarget().then(function (url) {
+        if (url && !fromApp) window.location.replace(url);
+        else showOffline(url);
+      });
+    })();
+  </script>
+</body>
+</html>

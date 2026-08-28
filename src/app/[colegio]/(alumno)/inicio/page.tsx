@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabase'
 import { avatarUrl, nombreCompleto, porcentaje } from '@/lib/utils'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -42,13 +42,13 @@ export default async function AlumnoInicio({ params }: Props) {
     grupoId
       ? admin
           .from('libro_grupos')
-          .select('libro:libros(id, titulo, descripcion, portada_url, orden, bloques(id, hojas(id)))')
+          .select('libro:libros(id, titulo, descripcion, portada_url, orden, bloques(id, hojas(id, tipo)))')
           .eq('grupo_id', grupoId)
           .eq('activo', true)
       : Promise.resolve({ data: [] }),
 
-    createServerSupabaseClient().then(supabase =>
-      supabase.from('visitas_hojas').select('hoja_id').eq('alumno_id', perfil.id)
+    Promise.resolve(
+      admin.from('visitas_hojas').select('hoja_id').eq('alumno_id', perfil.id)
     ),
   ])
 
@@ -103,9 +103,11 @@ export default async function AlumnoInicio({ params }: Props) {
         ) : (
           <div className="space-y-3">
             {libros.map((libro: any) => {
-              const totalHojas = libro.bloques?.flatMap((b: any) => b.hojas ?? []).length ?? 0
-              const hojaIds = libro.bloques?.flatMap((b: any) => (b.hojas ?? []).map((h: any) => h.id)) ?? []
-              const visitadas = hojaIds.filter((id: string) => visitedHojaIds.has(id)).length
+              const lecturaHojas = libro.bloques?.flatMap((b: any) =>
+                (b.hojas ?? []).filter((h: any) => h.tipo === 'lectura')
+              ) ?? []
+              const totalHojas = lecturaHojas.length
+              const visitadas = lecturaHojas.filter((h: any) => visitedHojaIds.has(h.id)).length
               const pct = porcentaje(visitadas, totalHojas)
 
               return (
@@ -130,7 +132,7 @@ export default async function AlumnoInicio({ params }: Props) {
                       <div className="progress-bar">
                         <div className="progress-fill" style={{ width: `${pct}%` }} />
                       </div>
-                      <p className="text-xs text-slate-400">{visitadas}/{totalHojas} páginas leídas</p>
+                      <p className="text-xs text-slate-400">{visitadas}/{totalHojas} lecturas completadas</p>
                     </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import PWAInstallBanner from '@/components/PWAInstallBanner'
+import ServiceWorkerRegister from '@/components/shared/ServiceWorkerRegister'
 
 const geistSans = Inter({ variable: '--font-sans', subsets: ['latin'] })
 const geistMono = JetBrains_Mono({ variable: '--font-mono', subsets: ['latin'] })
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preload" href="/fonts/Avenir.ttc" as="font" type="font/ttf" crossOrigin="anonymous" />
       </head>
       <body className="font-sans min-h-dvh flex flex-col">
+        <ServiceWorkerRegister />
         <PWAInstallBanner />
         {children}
       </body>

@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase'
 import ColegioSelector from '@/components/auth/ColegioSelector'
+import OfflineRedirect from '@/components/shared/OfflineRedirect'
 import type { Colegio } from '@/types'
 
 const avenir = "Avenir, 'Avenir Next', system-ui, sans-serif"
@@ -17,6 +18,7 @@ export default async function HomePage() {
       className="min-h-dvh flex flex-col items-center"
       style={{ backgroundColor: '#32383c', fontFamily: avenir }}
     >
+      <OfflineRedirect />
       {/* Columna centrada que contiene imagen + contenido */}
       <div className="w-full max-w-sm flex flex-col flex-1">
 

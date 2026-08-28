@@ -16,7 +16,12 @@ import type { Hoja, Entrega, Comentario, ZonaEscritura } from '@/types'
 
 const AUTOSAVE_MS = 1500
 
-const DRAW_COLORS = ['#0f172a', '#dc2626', '#2563eb', '#16a34a', '#ea580c', '#9333ea', '#ffffff']
+const DRAW_COLORS = [
+  '#0f172a', '#64748b', '#92400e', '#ef4444',
+  '#f97316', '#eab308', '#22c55e', '#14b8a6',
+  '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e',
+  '#fbbf24', '#a3e635', '#67e8f9', '#ffffff',
+]
 const BRUSH_SIZES = [3, 6, 12]
 
 interface Props {
@@ -112,10 +117,14 @@ export default function HojaViewer({
     return () => window.removeEventListener('entrega-synced', onSynced)
   }, [hoja.id])
 
-  // Register visit (solo si hay conexión)
+  // Register visit via API (uses admin client server-side to bypass RLS)
   useEffect(() => {
     if (!alumnoId || !navigator.onLine) return
-    supabase.rpc('registrar_visita', { p_alumno_id: alumnoId, p_hoja_id: hoja.id })
+    fetch('/api/colegio/visitas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hoja_id: hoja.id }),
+    })
   }, [hoja.id, alumnoId])
 
   // ── Canvas initialization (load size + existing drawing) ─────
@@ -208,7 +217,12 @@ export default function HojaViewer({
               canvasDirtyRef.current = false
             }
           } catch {
-            // Upload failed — keep existing url
+            // Network error (offline): save canvas as data URL so it uploads when reconnected
+            if (canvasRef.current) {
+              url = canvasRef.current.toDataURL('image/png')
+              setDibujoUrl(url)
+              canvasDirtyRef.current = false
+            }
           }
         }
         setUploadingMedia(false)
@@ -466,6 +480,10 @@ export default function HojaViewer({
 
       {/* ── Image + overlays ───────────────────────────────────── */}
       <div className="relative w-full" ref={imageContainerRef}>
+        {/* unoptimized: sirve la URL original de Supabase en vez de
+            /_next/image?url=...&w=..., que es la que precarga la descarga
+            para uso sin conexión. Con el optimizador las URLs no coinciden
+            y la imagen no aparece offline. */}
         <Image
           src={hoja.imagen_url}
           alt={hoja.titulo ?? 'Página'}
@@ -473,6 +491,7 @@ export default function HojaViewer({
           height={932}
           className="w-full h-auto block"
           priority
+          unoptimized
         />
 
         {/* Drawing canvas overlay (escritura_imagen) */}
@@ -519,12 +538,12 @@ export default function HojaViewer({
                 key={color}
                 type="button"
                 onClick={() => { setBrushColor(color); setToolMode('brush') }}
-                className="w-8 h-8 rounded-full transition-transform active:scale-90 flex-shrink-0"
+                className="w-7 h-7 rounded-full transition-transform active:scale-90 flex-shrink-0"
                 style={{
                   backgroundColor: color,
                   boxShadow:
                     brushColor === color && toolMode === 'brush'
-                      ? `0 0 0 2.5px white, 0 0 0 4.5px ${color === '#ffffff' ? '#94a3b8' : color}`
+                      ? `0 0 0 2px white, 0 0 0 4px ${color === '#ffffff' ? '#94a3b8' : color}`
                       : color === '#ffffff'
                       ? '0 0 0 1.5px #e2e8f0'
                       : 'none',
@@ -535,13 +554,13 @@ export default function HojaViewer({
               type="button"
               onClick={() => setToolMode('eraser')}
               className={cn(
-                'w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all',
+                'w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all',
                 toolMode === 'eraser'
                   ? 'border-brand-500 bg-brand-50'
                   : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
               )}
             >
-              <Eraser className="w-4 h-4 text-slate-600" />
+              <Eraser className="w-3.5 h-3.5 text-slate-600" />
             </button>
           </div>
 
@@ -997,7 +1016,16 @@ export default function HojaViewer({
 
         {nextHojaId ? (
           <button
-            onClick={() => router.push(`/${codigo}/libros/${libroId}/${bloqueId}/${nextHojaId}`)}
+            onClick={() => {
+              const url = `/${codigo}/libros/${libroId}/${bloqueId}/${nextHojaId}`
+              // Offline: full navigation so the SW can serve from cache.
+              // Online: SPA push for smooth transition.
+              if (!navigator.onLine) {
+                window.location.href = url
+              } else {
+                router.push(url)
+              }
+            }}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl
                        bg-slate-900 hover:bg-slate-800 active:scale-[0.98]
                        text-white font-semibold transition-all"

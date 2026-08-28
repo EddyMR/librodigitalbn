@@ -20,6 +20,10 @@
 /public/worker-*.js
 /public/fallback-*.js
 
+# volcados de la base de datos y respaldos de imágenes — datos personales
+# y archivos pesados, NEVER commit
+/backup_*/
+
 # misc
 .DS_Store
 *.pem

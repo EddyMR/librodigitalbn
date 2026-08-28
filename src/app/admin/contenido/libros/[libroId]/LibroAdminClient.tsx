@@ -5,6 +5,7 @@ import { Plus, Trash2, ChevronDown, ChevronUp, Upload, BookOpen, Users, Check, C
 import { Modal, Toast, Confirm } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
+import LibroPDFButton from '@/components/admin/LibroPDFButton'
 
 // Uploads file-backed media items directly to Supabase via signed URL,
 // bypassing Vercel's 4.5 MB request body limit. Returns updated items with
@@ -1206,6 +1207,9 @@ export default function LibroAdminClient({ libro, grupos: gruposInit, libroId }:
             <input type="file" accept="image/*" className="hidden" onChange={handlePortadaChange} disabled={portadaUploading} />
           </label>
           {portadaUrl && <p className="text-xs text-green-600 mt-1.5">✓ Portada guardada</p>}
+          <div className="mt-2">
+            <LibroPDFButton libroId={libroId} titulo={libro.titulo} portadaUrl={portadaUrl} />
+          </div>
         </div>
       </div>
 

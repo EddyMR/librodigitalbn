@@ -5,7 +5,7 @@ import { WifiOff, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function SyncStatus() {
-  const { pendingCount, syncing, justSynced, isOnline } = useSyncQueue()
+  const { pendingCount, syncing, justSynced, isOnline, syncCurrent, syncTotal } = useSyncQueue()
 
   const visible = !isOnline || syncing || pendingCount > 0 || justSynced
 
@@ -27,10 +27,13 @@ export default function SyncStatus() {
     )
   } else if (syncing) {
     bg = 'bg-blue-500'
+    const label = syncTotal > 1
+      ? `Subiendo ${syncCurrent} de ${syncTotal}... No desconectes`
+      : 'Subiendo respuesta... No desconectes'
     content = (
       <>
         <RefreshCw className="w-3.5 h-3.5 flex-shrink-0 animate-spin" />
-        <span>Enviando respuestas guardadas...</span>
+        <span>{label}</span>
       </>
     )
   } else if (pendingCount > 0) {

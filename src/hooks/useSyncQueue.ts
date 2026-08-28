@@ -15,26 +15,56 @@ export function useSyncQueue() {
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   )
+  const [syncCurrent, setSyncCurrent] = useState(0)
+  const [syncTotal, setSyncTotal] = useState(0)
   const syncingRef = useRef(false)
   const supabase = createClient()
 
   const syncPending = useCallback(async () => {
-    // Evitar ejecuciones simultáneas
     if (syncingRef.current) return
     const pending = await getPendingEntregas()
     if (pending.length === 0) return
 
     syncingRef.current = true
     setSyncing(true)
+    setSyncTotal(pending.length)
+    setSyncCurrent(0)
     let syncedAny = false
 
-    for (const entry of pending) {
+    for (let i = 0; i < pending.length; i++) {
+      const entry = pending[i]
+      setSyncCurrent(i + 1)
+
       try {
+        let contenido = entry.contenido
+
+        // Handle offline drawing: data URL must be uploaded before upsert
+        if (typeof contenido.dibujo_url === 'string' && (contenido.dibujo_url as string).startsWith('data:')) {
+          let uploaded = false
+          try {
+            const blob = await fetch(contenido.dibujo_url as string).then(r => r.blob())
+            const fd = new FormData()
+            fd.append('file', new File([blob], 'dibujo.png', { type: 'image/png' }))
+            fd.append('hoja_id', entry.hoja_id)
+            fd.append('tipo', 'dibujo')
+            const res = await fetch('/api/colegio/uploads', { method: 'POST', body: fd })
+            if (res.ok) {
+              const { url } = await res.json()
+              contenido = { ...contenido, dibujo_url: url }
+              uploaded = true
+            }
+          } catch {
+            // Network error during upload — stop entire sync
+            break
+          }
+          if (!uploaded) continue // Server error — skip this entry, try others
+        }
+
         const { error } = await supabase.from('entregas').upsert(
           {
             alumno_id: entry.alumno_id,
             hoja_id: entry.hoja_id,
-            contenido: entry.contenido,
+            contenido,
             estado: entry.estado,
             fecha_modificacion: entry.fecha_modificacion,
             ...(entry.fecha_entrega ? { fecha_entrega: entry.fecha_entrega } : {}),
@@ -45,19 +75,20 @@ export function useSyncQueue() {
         if (!error) {
           await removeEntrega(entry.key)
           syncedAny = true
-          // Avisar al HojaViewer activo que esta hoja ya fue sincronizada
           window.dispatchEvent(
             new CustomEvent('entrega-synced', { detail: { hoja_id: entry.hoja_id } })
           )
         }
       } catch {
-        // Error de red — dejar en cola, reintentar la próxima vez
+        // Red caída — dejar en cola, reintentar la próxima vez
         break
       }
     }
 
     syncingRef.current = false
     setSyncing(false)
+    setSyncCurrent(0)
+    setSyncTotal(0)
     const remaining = await countPending()
     setPendingCount(remaining)
 
@@ -68,7 +99,6 @@ export function useSyncQueue() {
   }, [supabase])
 
   useEffect(() => {
-    // Cargar conteo inicial al montar
     countPending().then(setPendingCount)
 
     function handleOnline() {
@@ -88,7 +118,6 @@ export function useSyncQueue() {
     window.addEventListener('offline', handleOffline)
     document.addEventListener('visibilitychange', handleVisibility)
 
-    // Sincronizar al montar si hay conexión (por si venía de offline)
     if (navigator.onLine) syncPending()
 
     return () => {
@@ -98,5 +127,5 @@ export function useSyncQueue() {
     }
   }, [syncPending])
 
-  return { pendingCount, syncing, justSynced, isOnline }
+  return { pendingCount, syncing, justSynced, isOnline, syncCurrent, syncTotal }
 }

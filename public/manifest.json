@@ -2,7 +2,7 @@
   "name": "Libro Digital Buena Nueva",
   "short_name": "Buena Nueva",
   "description": "Plataforma digital de catequesis con libros interactivos",
-  "start_url": "/",
+  "start_url": "/offline.html",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#4c6ef5",
