@@ -7,14 +7,39 @@ import ServiceWorkerRegister from '@/components/shared/ServiceWorkerRegister'
 const geistSans = Inter({ variable: '--font-sans', subsets: ['latin'] })
 const geistMono = JetBrains_Mono({ variable: '--font-mono', subsets: ['latin'] })
 
+// Dominio canónico para las tarjetas al compartir. A propósito independiente de
+// NEXT_PUBLIC_APP_URL, que apunta al dominio de Vercel y alimenta los orígenes
+// permitidos de las server actions: si se comparte, debe verse teresianos.com.
+const siteUrl = 'https://teresianos.com'
+const titulo = 'Buena Nueva · Programa Teresiano de formación'
+const descripcion =
+  'Los libros de catequesis del programa Buena Nueva, para leer y trabajar desde el móvil — también sin conexión.'
+
 export const metadata: Metadata = {
-  title: { template: '%s | Buena Nueva', default: 'Libro Digital Buena Nueva' },
-  description: 'Plataforma digital de catequesis con libros interactivos',
+  // Sin metadataBase, Next no puede resolver la ruta de la imagen para
+  // compartir y las tarjetas de WhatsApp/Facebook salen sin imagen.
+  metadataBase: new URL(siteUrl),
+  title: { template: '%s | Buena Nueva', default: titulo },
+  description: descripcion,
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
     title: 'Buena Nueva',
+  },
+  // La imagen la toma Next de src/app/opengraph-image.png
+  openGraph: {
+    type: 'website',
+    siteName: 'Buena Nueva',
+    title: titulo,
+    description: descripcion,
+    url: siteUrl,
+    locale: 'es_MX',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: titulo,
+    description: descripcion,
   },
 }
 

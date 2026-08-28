@@ -80,6 +80,6 @@ export const config = {
   matcher: [
     // Los ficheros del service worker deben servirse tal cual: si el middleware
     // los redirige, importScripts() falla y el SW entero deja de funcionar.
-    '/((?!_next/static|_next/image|favicon\\.ico|apple-icon|icon|avatars|images|fonts|offline\\.html|manifest\\.json|sw\\.js|workbox-.*\\.js|fallback-.*\\.js).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|apple-icon|icon|opengraph-image|avatars|images|fonts|offline\\.html|manifest\\.json|sw\\.js|workbox-.*\\.js|fallback-.*\\.js).*)',
   ],
 }
