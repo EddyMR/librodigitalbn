@@ -7,6 +7,14 @@ const withPWA = require('next-pwa')({
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
   buildExcludes: [/app-build-manifest\.json$/],
+  // Caducidades largas a propósito. Es seguro porque:
+  //  · las páginas usan NetworkFirst, así que con conexión SIEMPRE se pide a la
+  //    red primero y se ve contenido fresco; la caché solo actúa de reserva
+  //  · al subir una imagen el nombre lleva Date.now() (upload-media/route.ts),
+  //    así que reemplazar una imagen genera un URL nuevo y la caché vieja deja
+  //    de usarse sola. No hay forma de quedarse con contenido obsoleto.
+  // Si alguna vez hace falta invalidar todo a la fuerza, basta con cambiar el
+  // cacheName (p. ej. 'supabase-storage-v2'): crea una caché nueva y vacía.
   // Cualquier navegación que falle sirve nuestra página en vez del error de Chrome.
   fallbacks: { document: '/offline.html' },
   runtimeCaching: [
@@ -23,7 +31,7 @@ const withPWA = require('next-pwa')({
       options: {
         cacheName: 'hoja-pages',
         networkTimeoutSeconds: 8,
-        expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 7 },
+        expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 365 },
         matchOptions: { ignoreVary: true },
       },
     },
@@ -34,7 +42,7 @@ const withPWA = require('next-pwa')({
       handler: 'CacheFirst',
       options: {
         cacheName: 'next-image',
-        expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 30 },
+        expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 365 },
       },
     },
     // Root page (start_url): NetworkFirst so it works as an offline entry point.
@@ -45,7 +53,7 @@ const withPWA = require('next-pwa')({
       options: {
         cacheName: 'app-shell',
         networkTimeoutSeconds: 5,
-        expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 },
+        expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 30 },
         matchOptions: { ignoreVary: true },
       },
     },
@@ -66,7 +74,7 @@ const withPWA = require('next-pwa')({
       handler: 'CacheFirst',
       options: {
         cacheName: 'supabase-storage',
-        expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
+        expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 365 },
       },
     },
     {
