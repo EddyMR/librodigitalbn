@@ -93,6 +93,7 @@ export default async function AdminColegioDashboard({ params }: Props) {
           { label: 'Agregar catequista', href: `/${codigo}/usuarios/nuevo?rol=catequista`, icon: '✝️', color: 'bg-gold-500' },
           { label: 'Gestionar grupos', href: `/${codigo}/grupos`, icon: '👥', color: 'bg-purple-600' },
           { label: 'Gestionar usuarios', href: `/${codigo}/usuarios`, icon: '📋', color: 'bg-green-600' },
+          { label: 'Actividad de catequistas', href: `/${codigo}/actividad`, icon: '💬', color: 'bg-rose-600' },
         ].map(a => (
           <Link key={a.label} href={a.href}
             className="card card-hover p-4 flex items-center gap-3">
