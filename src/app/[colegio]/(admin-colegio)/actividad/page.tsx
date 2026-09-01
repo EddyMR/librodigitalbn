@@ -30,7 +30,13 @@ async function enLotes<T>(ids: string[], fn: (lote: string[]) => Promise<T[]>): 
 export default async function ActividadPage({ params }: Props) {
   const { colegio: codigo } = await params
   const perfil = await getSession()
-  if (!perfil || perfil.rol !== 'admin_colegio') redirect(`/${codigo}/login`)
+  // Solo el administrador del colegio. Se comprueba ANTES de crear el cliente
+  // con clave de servicio: un no-administrador no llega a rozar los datos.
+  // Cada rol va a su propia pantalla, no al login, que ya tienen sesión.
+  if (!perfil) redirect(`/${codigo}/login`)
+  if (perfil.rol === 'alumno') redirect(`/${codigo}/inicio`)
+  if (perfil.rol === 'catequista') redirect(`/${codigo}/grupo`)
+  if (perfil.rol !== 'admin_colegio') redirect(`/${codigo}/login`)
 
   // El colegio sale SIEMPRE de la sesión, nunca de la URL. Si no coinciden se
   // redirige: sin esto un administrador vería sus propios datos bajo el código
