@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, MessageSquare } from 'lucide-react'
+import { ArrowLeft, MessageSquare, BookOpen } from 'lucide-react'
 import { getSession } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase'
 import { nombreCompleto, formatRelativo, cn } from '@/lib/utils'
@@ -117,7 +117,27 @@ export default async function ActividadPage({ params }: Props) {
     }
   }
 
-  const datos: DatosActividad = { grupos, catequistas, miembros, entregas, comentarios, ultimoAcceso }
+  // Libros asignados a estos grupos, para ofrecer «ver el libro»
+  const asignaciones = grupoIds.length
+    ? await enLotes(grupoIds, async lote => {
+        const { data } = await admin.from('libro_grupos')
+          .select('grupo_id, libro_id')
+          .in('grupo_id', lote)
+          .eq('activo', true)
+        return data ?? []
+      })
+    : []
+  const libroIds = [...new Set(asignaciones.map(a => a.libro_id))]
+  const titulos = new Map<string, string>()
+  if (libroIds.length) {
+    const { data } = await admin.from('libros').select('id, titulo').in('id', libroIds)
+    for (const l of data ?? []) titulos.set(l.id, l.titulo)
+  }
+  const librosPorGrupo = asignaciones.map(a => ({
+    grupo_id: a.grupo_id, libro_id: a.libro_id, titulo: titulos.get(a.libro_id) ?? 'Libro',
+  }))
+
+  const datos: DatosActividad = { grupos, catequistas, miembros, entregas, comentarios, ultimoAcceso, librosPorGrupo }
 
   // Red de seguridad: si algo llegó fuera del colegio, se rompe la página en
   // vez de mostrar datos ajenos.
@@ -173,7 +193,7 @@ export default async function ActividadPage({ params }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          {conCatequista.map(f => <Tarjeta key={f.grupoId} fila={f} />)}
+          {conCatequista.map(f => <Tarjeta key={f.grupoId} fila={f} codigo={codigo} />)}
         </div>
       )}
 
@@ -202,7 +222,7 @@ const ETIQUETA: Record<EstadoCatequista, { texto: string; clase: string; barra: 
   'sin-entregas': { texto: 'Sin entregas', clase: 'bg-slate-100 text-slate-500', barra: 'bg-slate-300' },
 }
 
-function Tarjeta({ fila }: { fila: FilaActividad }) {
+function Tarjeta({ fila, codigo }: { fila: FilaActividad; codigo: string }) {
   const e = ETIQUETA[fila.estado]
   const pct = fila.cobertura === null ? 0 : Math.round(fila.cobertura * 100)
 
@@ -249,6 +269,17 @@ function Tarjeta({ fila }: { fila: FilaActividad }) {
           etiqueta={<>última<br />retro</>}
         />
       </div>
+
+      {fila.libros.map(l => (
+        <Link
+          key={l.id}
+          href={`/${codigo}/libros/${l.id}`}
+          className="mt-3 flex items-center gap-2 text-xs text-brand-600 hover:text-brand-700 font-medium"
+        >
+          <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
+          Ver «{l.titulo}» como lo ve el alumno
+        </Link>
+      ))}
     </div>
   )
 }

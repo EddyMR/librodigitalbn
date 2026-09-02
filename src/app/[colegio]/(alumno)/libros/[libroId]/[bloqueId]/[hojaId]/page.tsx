@@ -1,4 +1,5 @@
 import { redirect, notFound } from 'next/navigation'
+import VistaSoloLectura from '@/components/libro/VistaSoloLectura'
 import { getSession } from '@/lib/auth'
 import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase'
 import HojaViewer from '@/components/libro/HojaViewer'
@@ -87,6 +88,7 @@ export default async function HojaPage({ params }: Props) {
 
   return (
     <div className="min-h-dvh flex flex-col bg-black">
+      {perfil.rol !== 'alumno' && <VistaSoloLectura />}
       {/* Navigation header */}
       <HojaNav
         codigo={codigo}

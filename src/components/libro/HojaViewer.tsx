@@ -294,6 +294,11 @@ export default function HojaViewer({
 
   // ── Media upload ─────────────────────────────────────────────
   async function uploadMedia(file: File, tipo: string): Promise<string | null> {
+    // Sin alumno no se sube nada. Hoy solo la llaman los controles de foto y
+    // audio, que ya exigen alumnoId, pero la guarda va aquí para que la
+    // invariante no dependa de quién llame: catequistas y administradores
+    // abren este mismo lector en modo solo lectura.
+    if (!alumnoId) return null
     if (!navigator.onLine) return null
     setUploadingMedia(true)
     try {

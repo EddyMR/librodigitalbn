@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, BookOpen, ChevronRight } from 'lucide-react'
 import GrupoAlumnosClient from './GrupoAlumnosClient'
 import type { Metadata } from 'next'
 
@@ -168,6 +168,27 @@ export default async function GrupoPage({ params }: Props) {
           <p className="text-sm text-slate-400">{alumnos.length} alumnos</p>
         </div>
       </div>
+
+      {(librosBase.data ?? []).length > 0 && (
+        <div className="px-4 pt-4 space-y-2">
+          {(librosBase.data ?? []).map((l: any) => (
+            <Link
+              key={l.id}
+              href={`/${codigo}/libros/${l.id}`}
+              className="card card-hover p-3.5 flex items-center gap-3"
+            >
+              <div className="w-9 h-9 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
+                <BookOpen className="w-4.5 h-4.5 text-brand-700" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-700 truncate">Ver el libro</p>
+                <p className="text-xs text-slate-400 truncate">{l.titulo} · como lo ve el alumno</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
+            </Link>
+          ))}
+        </div>
+      )}
 
       <GrupoAlumnosClient
         alumnos={alumnosConStats}

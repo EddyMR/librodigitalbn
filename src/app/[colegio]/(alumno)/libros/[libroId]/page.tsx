@@ -1,4 +1,5 @@
 import { redirect, notFound } from 'next/navigation'
+import VistaSoloLectura from '@/components/libro/VistaSoloLectura'
 import { getSession } from '@/lib/auth'
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase'
 import Link from 'next/link'
@@ -74,6 +75,7 @@ export default async function LibroPage({ params }: Props) {
 
   return (
     <div className="min-h-dvh bg-slate-50 pb-24">
+      {perfil.rol !== 'alumno' && <VistaSoloLectura volverA={perfil.rol === 'catequista' ? `/${codigo}/grupo` : `/${codigo}/grupos`} />}
       {/* Hero header */}
       <div className="bg-brand-600 px-4 pt-4 pb-8 space-y-4">
         <Link href={`/${codigo}/inicio`} className="inline-flex items-center gap-1.5 text-brand-200 hover:text-white text-sm">

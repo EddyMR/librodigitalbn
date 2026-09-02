@@ -13,12 +13,16 @@ export interface Comentario {
   publicado: boolean
 }
 
+/** Un libro asignado a un grupo, para poder ofrecer «ver el libro» */
+export interface LibroDeGrupo { grupo_id: string; libro_id: string; titulo: string }
+
 export interface DatosActividad {
   grupos: Grupo[]
   catequistas: Catequista[]
   miembros: Miembro[]
   entregas: Entrega[]
   comentarios: Comentario[]
+  librosPorGrupo?: LibroDeGrupo[]
   /** user_id de auth → fecha ISO del último acceso */
   ultimoAcceso?: Record<string, string | null>
 }
@@ -40,6 +44,7 @@ export interface FilaActividad {
   ultimaRetro: string | null
   ultimoAcceso: string | null
   estado: EstadoCatequista
+  libros: { id: string; titulo: string }[]
 }
 
 export interface ResumenActividad {
@@ -57,7 +62,7 @@ const DIA_MS = 86_400_000
 const UMBRAL_AL_DIA = 0.8
 
 export function calcularActividad(datos: DatosActividad): ResumenActividad {
-  const { grupos, catequistas, miembros, entregas, comentarios, ultimoAcceso = {} } = datos
+  const { grupos, catequistas, miembros, entregas, comentarios, ultimoAcceso = {}, librosPorGrupo = [] } = datos
 
   const catequistaPorId = new Map(catequistas.map(c => [c.id, c]))
   const entregaPorId = new Map(entregas.map(e => [e.id, e]))
@@ -151,6 +156,9 @@ export function calcularActividad(datos: DatosActividad): ResumenActividad {
       ultimaRetro: ultimaRetro !== null ? new Date(ultimaRetro).toISOString() : null,
       ultimoAcceso: catequista?.user_id ? ultimoAcceso[catequista.user_id] ?? null : null,
       estado,
+      libros: librosPorGrupo
+        .filter(l => l.grupo_id === g.id)
+        .map(l => ({ id: l.libro_id, titulo: l.titulo })),
     }
   })
 

@@ -13,17 +13,22 @@ export default async function AlumnoLayout({ children, params }: Props) {
   const perfil = await getSession()
 
   if (!perfil) redirect(`/${codigo}/login`)
-  if (perfil.rol === 'catequista') redirect(`/${codigo}/grupo`)
-  if (perfil.rol === 'admin_colegio') redirect(`/${codigo}/dashboard`)
-  if (perfil.rol !== 'alumno') redirect(`/${codigo}/login`)
+
+  // Catequistas y administradores pueden entrar aquí para ver el libro tal
+  // como lo ve el alumno. No es un agujero: las páginas de libro solo pasan
+  // `alumnoId` cuando el perfil es alumno, y sin él HojaViewer no escribe nada
+  // ni muestra ningún control. Y /inicio se protege por su cuenta.
+  if (perfil.rol !== 'alumno' && perfil.rol !== 'catequista' && perfil.rol !== 'admin_colegio') {
+    redirect(`/${codigo}/login`)
+  }
 
   return (
     <div className="min-h-dvh bg-slate-50">
-      <SyncStatus />
+      {perfil.rol === 'alumno' && <SyncStatus />}
       <main className="max-w-lg mx-auto">
         {children}
       </main>
-      <BottomNav codigo={codigo} rol="alumno" />
+      <BottomNav codigo={codigo} rol={perfil.rol} />
     </div>
   )
 }
