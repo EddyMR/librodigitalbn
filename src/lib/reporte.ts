@@ -40,10 +40,11 @@ export interface DatosReporte {
 }
 
 export type EstadoColegio =
-  | 'sin-configurar'  // le falta algo sin lo cual el alumno no puede trabajar
+  | 'sin-configurar'  // TIENE alumnos, pero algo les impide trabajar
   | 'sin-arrancar'    // puede usarse, pero nadie ha entregado nada
   | 'flojea'          // se usa poco
   | 'va-bien'
+  | 'sin-alumnos'     // creado, aún sin dar de alta a nadie: nada que medir
   | 'inactivo'        // dado de baja
 
 export interface FilaColegio {
@@ -79,7 +80,11 @@ export interface Reporte {
   /** Alumnos activos sobre el total, no la media de porcentajes: una media
    *  entre un colegio al 90% y otro al 0% da 45% y no dice nada de ninguno. */
   adopcionGlobal: number | null
+  /** Colegios listos que no están trabajando. Los que aún no tienen alumnos
+   *  quedan fuera: son trabajo pendiente, no un problema, y si contaran
+   *  ahogarían la señal de los que sí deberían estar produciendo. */
   necesitanAtencion: number
+  sinAlumnosTodavia: number
   filas: FilaColegio[]
 }
 
@@ -124,11 +129,14 @@ export function construirReporte(datos: DatosReporte, ahora = Date.now()): Repor
     const activos = activosPorColegio.get(c.id)?.size ?? 0
     const adopcion = alumnos > 0 ? activos / alumnos : null
 
-    // Lo que impide al alumno trabajar. Sin esto, medir el uso no tiene sentido.
+    // Lo que impide trabajar a unos alumnos que YA existen. No incluye «sin
+    // alumnos»: eso es un estado propio, porque un colegio recién creado y uno
+    // con 119 alumnos parados no son el mismo problema.
     const faltas: string[] = []
-    if (alumnos === 0) faltas.push('sin alumnos dados de alta')
-    if (susGrupos.length === 0) faltas.push('sin grupos')
-    else if (gruposSinLibro === susGrupos.length) faltas.push('sin libros asignados')
+    if (alumnos > 0) {
+      if (susGrupos.length === 0) faltas.push('sin grupos')
+      else if (gruposSinLibro === susGrupos.length) faltas.push('sin libros asignados')
+    }
 
     // Limita el seguimiento, pero el alumno sí puede usar la plataforma.
     const avisos: string[] = []
@@ -146,6 +154,7 @@ export function construirReporte(datos: DatosReporte, ahora = Date.now()): Repor
 
     let estado: EstadoColegio
     if (!c.activo) estado = 'inactivo'
+    else if (alumnos === 0) estado = 'sin-alumnos'
     else if (faltas.length > 0) estado = 'sin-configurar'
     else if (activos === 0) estado = 'sin-arrancar'
     else if (adopcion! >= UMBRAL_VA_BIEN) estado = 'va-bien'
@@ -174,7 +183,8 @@ export function construirReporte(datos: DatosReporte, ahora = Date.now()): Repor
 
   // Triaje: primero lo que exige que hagas algo, al final lo que va solo.
   const orden: Record<EstadoColegio, number> = {
-    'sin-configurar': 0, 'sin-arrancar': 1, 'flojea': 2, 'va-bien': 3, 'inactivo': 4,
+    'sin-configurar': 0, 'sin-arrancar': 1, 'flojea': 2, 'va-bien': 3,
+    'sin-alumnos': 4, 'inactivo': 5,
   }
   filas.sort((a, b) =>
     orden[a.estado] - orden[b.estado] ||
@@ -196,6 +206,7 @@ export function construirReporte(datos: DatosReporte, ahora = Date.now()): Repor
     necesitanAtencion: filas.filter(
       f => f.estado === 'sin-configurar' || f.estado === 'sin-arrancar'
     ).length,
+    sinAlumnosTodavia: filas.filter(f => f.estado === 'sin-alumnos').length,
     filas,
   }
 }

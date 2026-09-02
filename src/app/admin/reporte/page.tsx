@@ -94,7 +94,9 @@ export default async function ReportePage() {
           <Global
             icono={AlertTriangle}
             valor={`${r.necesitanAtencion}`}
-            etiqueta="Necesitan atención"
+            etiqueta={r.sinAlumnosTodavia > 0
+              ? `Listos y parados · ${r.sinAlumnosTodavia} aún sin alumnos`
+              : 'Listos y parados'}
             color={r.necesitanAtencion > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400'}
           />
         </div>
@@ -103,6 +105,8 @@ export default async function ReportePage() {
           <p className="text-xs text-slate-400 -mt-2">
             El porcentaje global son alumnos activos sobre el total, no la media entre colegios:
             promediar un colegio al 90% con otro al 0% daría 45% y no describiría a ninguno.
+            «Listos y parados» cuenta solo los colegios que <em>pueden</em> trabajar y no lo hacen;
+            los que aún no tienen alumnos son trabajo pendiente, no un problema, y van aparte.
           </p>
         )}
 
@@ -144,6 +148,7 @@ const ESTADO: Record<EstadoColegio, { texto: string; pill: string; barra: string
   'sin-arrancar': { texto: 'Sin arrancar', pill: 'bg-amber-100 text-amber-700', barra: 'bg-amber-500' },
   'flojea': { texto: 'Flojea', pill: 'bg-gold-100 text-gold-700', barra: 'bg-gold-500' },
   'va-bien': { texto: 'Va bien', pill: 'bg-green-100 text-green-700', barra: 'bg-green-500' },
+  'sin-alumnos': { texto: 'Sin alumnos aún', pill: 'bg-slate-100 text-slate-600', barra: 'bg-slate-300' },
   'inactivo': { texto: 'De baja', pill: 'bg-slate-100 text-slate-500', barra: 'bg-slate-300' },
 }
 
@@ -163,7 +168,7 @@ function Colegio({ fila: f }: { fila: FilaColegio }) {
         </span>
       </div>
 
-      {f.faltas.length > 0 && (
+      {f.estado === 'sin-configurar' && f.faltas.length > 0 && (
         <div className="mt-3 rounded-xl bg-red-50 border border-red-100 px-3 py-2.5">
           <p className="text-xs font-semibold text-red-800">
             Los alumnos no pueden trabajar todavía
@@ -172,7 +177,14 @@ function Colegio({ fila: f }: { fila: FilaColegio }) {
         </div>
       )}
 
-      {f.estado !== 'sin-configurar' && f.alumnos > 0 && (
+      {f.estado === 'sin-alumnos' && (
+        <p className="mt-3 text-xs text-slate-500">
+          Creado hace {f.diasDesdeAlta} días · todavía no se ha dado de alta a ningún alumno
+          {f.grupos === 0 ? ' ni se han creado grupos' : ''}
+        </p>
+      )}
+
+      {f.estado !== 'sin-configurar' && f.estado !== 'sin-alumnos' && f.alumnos > 0 && (
         <div className="mt-3">
           <div className="flex items-baseline justify-between text-xs text-slate-500 mb-1.5">
             <span>Alumnos que entregaron</span>
