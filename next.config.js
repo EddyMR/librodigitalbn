@@ -109,6 +109,13 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.supabase.co', port: '', pathname: '/storage/**' },
     ],
   },
+  // Direcciones limpias para las guías: /guias/catequista en vez de .html
+  async rewrites() {
+    return [
+      { source: '/guias/catequista', destination: '/guias/catequista.html' },
+      { source: '/guias/admin', destination: '/guias/admin.html' },
+    ]
+  },
   experimental: {
     serverActions: {
       allowedOrigins: ['localhost:3000', productionHost].filter(Boolean),

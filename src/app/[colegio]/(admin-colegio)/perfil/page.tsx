@@ -5,6 +5,8 @@ import Image from 'next/image'
 import PerfilEditForm from '@/components/perfil/PerfilEditForm'
 import CurrentAvatar from '@/components/shared/CurrentAvatar'
 import CambiarContrasenaForm from '@/components/perfil/CambiarContrasenaForm'
+import Link from 'next/link'
+import { BookOpen, ExternalLink } from 'lucide-react'
 import LogoutButton from '@/components/auth/LogoutButton'
 import type { Metadata } from 'next'
 
@@ -63,6 +65,26 @@ export default async function PerfilPage({ params }: Props) {
         <h2 className="font-semibold text-slate-800 mb-4">Cambiar contraseña</h2>
         <CambiarContrasenaForm />
       </div>
+
+      {(perfil.rol === 'catequista' || perfil.rol === 'admin_colegio') && (
+        <a
+          href={perfil.rol === 'catequista' ? '/guias/catequista' : '/guias/admin'}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="card card-hover p-4 flex items-center gap-3"
+        >
+          <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
+            <BookOpen className="w-5 h-5 text-brand-700" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-700">
+              {perfil.rol === 'catequista' ? 'Guía del catequista' : 'Guía del administrador'}
+            </p>
+            <p className="text-xs text-slate-400">Cómo usar la plataforma, paso a paso</p>
+          </div>
+          <ExternalLink className="w-4 h-4 text-slate-300 flex-shrink-0" />
+        </a>
+      )}
 
       <div className="card p-2">
         <LogoutButton />
