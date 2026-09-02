@@ -1,7 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
+import { headers, cookies } from 'next/headers'
 import { createServerSupabaseClient, createAdminClient } from './supabase'
 import { Perfil, RolUsuario } from '@/types'
 import crypto from 'crypto'
@@ -12,6 +12,21 @@ async function getAppUrl(): Promise<string> {
   const host = h.get('x-forwarded-host') || h.get('host') || 'localhost:3000'
   const proto = h.get('x-forwarded-proto') || (process.env.NODE_ENV === 'production' ? 'https' : 'http')
   return `${proto}://${host}`
+}
+
+// ── Puerta del administrador general ─────────────────────────
+/**
+ * Corta el paso a cualquiera que no traiga la cookie del admin general.
+ *
+ * El middleware ya cierra toda la rama /admin, así que esto es una segunda
+ * cerradura a propósito: si el matcher del middleware cambia y deja de cubrir
+ * una ruta, la página seguiría protegida en vez de quedar abierta de par en
+ * par. Se llama antes de leer ningún dato.
+ */
+export async function exigirAdminGeneral() {
+  const galletas = await cookies()
+  const token = galletas.get('admin_token')?.value
+  if (!token || token !== process.env.ADMIN_GENERAL_SECRET) redirect('/admin')
 }
 
 // ── Get current user profile ──────────────────────────────────

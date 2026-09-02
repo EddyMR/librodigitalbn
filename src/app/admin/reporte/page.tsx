@@ -1,14 +1,12 @@
 import Link from 'next/link'
 import { AlertTriangle, Building2, TrendingUp, Users } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase'
+import { exigirAdminGeneral } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import { construirReporte } from '@/lib/reporte'
 import type { FilaColegio, EstadoColegio, EntregaBruta } from '@/lib/reporte'
 import type { Metadata } from 'next'
 
-// El acceso lo cierra el middleware: /admin/* exige la cookie admin_token
-// contra ADMIN_GENERAL_SECRET. Aquí no se vuelve a comprobar porque ninguna
-// petición llega sin pasar por ahí.
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Estado de los colegios' }
 
@@ -18,6 +16,11 @@ const DIAS_VENTANA = 30
 const PAGINA = 1000
 
 export default async function ReportePage() {
+  // Solo el administrador general. El middleware ya cierra /admin, pero esta
+  // segunda cerradura se comprueba antes de tocar ningún dato: si el matcher
+  // del middleware cambiara, la página no quedaría abierta.
+  await exigirAdminGeneral()
+
   const admin = createAdminClient()
   const desde = new Date(Date.now() - DIAS_VENTANA * 86_400_000).toISOString()
 
