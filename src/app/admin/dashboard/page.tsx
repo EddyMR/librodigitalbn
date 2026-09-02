@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { Building2, Users, BookOpen, Plus, LayoutList, Upload, ShieldCheck, CalendarDays, ArrowRight } from 'lucide-react'
+import { Building2, Users, BookOpen, Plus, LayoutList, Upload, ShieldCheck, CalendarDays, ArrowRight, Activity } from 'lucide-react'
 import type { Metadata } from 'next'
 import DashboardRefresh from './DashboardRefresh'
 
@@ -62,6 +62,7 @@ export default async function AdminDashboard() {
           <h2 className="font-semibold text-slate-700">Acciones rápidas</h2>
           <div className="space-y-2">
             {[
+              { label: 'Estado de los colegios', href: '/admin/reporte', icon: Activity },
               { label: 'Gestionar colegios', href: '/admin/colegios', icon: Building2 },
               { label: 'Gestionar usuarios', href: '/admin/usuarios', icon: Users },
               { label: 'Subir alumnos masivo', href: '/admin/usuarios/masivo', icon: Upload },
