@@ -88,6 +88,11 @@ export default function HojaViewer({
   const router = useRouter()
   const supabase = createClient()
 
+  // Sin alumno se está en modo vista: catequistas y administradores ven el
+  // libro como lo ve el alumno. La actividad se MUESTRA, desactivada; ocultarla
+  // dejaba en negro el 40% de las hojas, que es justo lo que querían ver.
+  const soloLectura = !alumnoId
+
   const preguntas = hoja.config?.preguntas ?? []
   const tablaFilas = hoja.config?.filas ?? []
   const tablaColumnas = hoja.config?.columnas ?? []
@@ -525,7 +530,7 @@ export default function HojaViewer({
               <span className="text-sm font-semibold text-slate-800">Dibuja encima</span>
             </div>
             <div className="flex items-center gap-2">
-              <SaveIndicator status={saveStatus} />
+              {!soloLectura && <SaveIndicator status={saveStatus} />}
               <button
                 type="button"
                 onClick={clearCanvas}
@@ -602,7 +607,7 @@ export default function HojaViewer({
       )}
 
       {/* ── Escritura libre (textarea) ───────────────────────── */}
-      {hoja.tipo === 'escritura_libre' && alumnoId && (
+      {hoja.tipo === 'escritura_libre' && (
         <div className="px-4 pt-5 pb-3">
           <div className="flex items-center gap-2.5 mb-3">
             <div className="w-9 h-9 rounded-2xl bg-brand-100 flex items-center justify-center flex-shrink-0">
@@ -610,11 +615,12 @@ export default function HojaViewer({
             </div>
             <div className="flex-1">
               <p className="font-semibold text-slate-900 text-sm leading-tight">Tu respuesta</p>
-              <p className="text-xs text-slate-400 mt-0.5">Se guarda automáticamente</p>
+              <p className="text-xs text-slate-400 mt-0.5">{soloLectura ? 'Así lo responde el alumno' : 'Se guarda automáticamente'}</p>
             </div>
-            <SaveIndicator status={saveStatus} />
+            {!soloLectura && <SaveIndicator status={saveStatus} />}
           </div>
           <textarea
+            disabled={soloLectura}
             value={texto}
             onChange={e => setTexto(e.target.value)}
             placeholder="Escribe tu respuesta aquí..."
@@ -632,7 +638,7 @@ export default function HojaViewer({
       )}
 
       {/* ── Foto ─────────────────────────────────────────────── */}
-      {hoja.tipo === 'foto' && alumnoId && (
+      {hoja.tipo === 'foto' && (
         <div className="px-4 pt-5 pb-3 space-y-3">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-2xl bg-sky-100 flex items-center justify-center flex-shrink-0">
@@ -640,9 +646,9 @@ export default function HojaViewer({
             </div>
             <div className="flex-1">
               <p className="font-semibold text-slate-900 text-sm">Tu foto</p>
-              <p className="text-xs text-slate-400">Toma una foto o selecciona una imagen</p>
+              <p className="text-xs text-slate-400">{soloLectura ? 'Aquí el alumno sube una foto' : 'Toma una foto o selecciona una imagen'}</p>
             </div>
-            <SaveIndicator status={saveStatus} />
+            {!soloLectura && <SaveIndicator status={saveStatus} />}
           </div>
 
           {fotoUrl ? (
@@ -662,7 +668,7 @@ export default function HojaViewer({
               )}>
                 <Camera className="w-3.5 h-3.5" />
                 Cambiar foto
-                <input type="file" accept="image/*" className="hidden" onChange={handleFotoChange} disabled={uploadingMedia} />
+                <input type="file" accept="image/*" className="hidden" onChange={handleFotoChange} disabled={uploadingMedia || soloLectura} />
               </label>
             </div>
           ) : (
@@ -686,14 +692,14 @@ export default function HojaViewer({
                   </div>
                 </>
               )}
-              <input type="file" accept="image/*" className="hidden" onChange={handleFotoChange} disabled={uploadingMedia} />
+              <input type="file" accept="image/*" className="hidden" onChange={handleFotoChange} disabled={uploadingMedia || soloLectura} />
             </label>
           )}
         </div>
       )}
 
       {/* ── Audio ─────────────────────────────────────────────── */}
-      {hoja.tipo === 'audio' && alumnoId && (
+      {hoja.tipo === 'audio' && (
         <div className="px-4 pt-5 pb-3 space-y-3">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-2xl bg-purple-100 flex items-center justify-center flex-shrink-0">
@@ -701,16 +707,16 @@ export default function HojaViewer({
             </div>
             <div className="flex-1">
               <p className="font-semibold text-slate-900 text-sm">Tu audio</p>
-              <p className="text-xs text-slate-400">Graba tu voz o sube un archivo</p>
+              <p className="text-xs text-slate-400">{soloLectura ? 'Aquí el alumno graba su voz' : 'Graba tu voz o sube un archivo'}</p>
             </div>
-            <SaveIndicator status={saveStatus} />
+            {!soloLectura && <SaveIndicator status={saveStatus} />}
           </div>
 
           <div className="flex gap-2">
             {!recording ? (
               <button
                 onClick={startRecording}
-                disabled={uploadingMedia}
+                disabled={uploadingMedia || soloLectura}
                 className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-700 active:scale-[0.98] text-white font-semibold transition-all disabled:opacity-50"
               >
                 <Mic className="w-4 h-4" />
@@ -731,7 +737,7 @@ export default function HojaViewer({
             <label className="flex items-center justify-center gap-2 py-2.5 rounded-2xl border-2 border-dashed border-slate-200 text-slate-500 text-sm font-medium cursor-pointer hover:border-brand-300 hover:text-brand-600 transition-all">
               <Upload className="w-4 h-4" />
               {uploadingMedia ? 'Subiendo...' : 'O subir archivo de audio'}
-              <input type="file" accept="audio/*" className="hidden" onChange={handleAudioFileChange} disabled={uploadingMedia || recording} />
+              <input type="file" accept="audio/*" className="hidden" onChange={handleAudioFileChange} disabled={uploadingMedia || recording || soloLectura} />
             </label>
           )}
 
@@ -776,7 +782,7 @@ export default function HojaViewer({
       )}
 
       {/* ── Cuestionario ─────────────────────────────────────── */}
-      {hoja.tipo === 'cuestionario' && alumnoId && preguntas.length > 0 && (
+      {hoja.tipo === 'cuestionario' && preguntas.length > 0 && (
         <div className="px-4 pt-5 pb-3 space-y-4">
           <div className="flex items-center gap-2.5 mb-1">
             <div className="w-9 h-9 rounded-2xl bg-amber-100 flex items-center justify-center flex-shrink-0">
@@ -784,9 +790,9 @@ export default function HojaViewer({
             </div>
             <div className="flex-1">
               <p className="font-semibold text-slate-900 text-sm">Responde las preguntas</p>
-              <p className="text-xs text-slate-400">Se guarda automáticamente</p>
+              <p className="text-xs text-slate-400">{soloLectura ? 'Así lo responde el alumno' : 'Se guarda automáticamente'}</p>
             </div>
-            <SaveIndicator status={saveStatus} />
+            {!soloLectura && <SaveIndicator status={saveStatus} />}
           </div>
 
           {preguntas.map((pregunta, i) => (
@@ -798,6 +804,7 @@ export default function HojaViewer({
                 <p className="font-medium text-slate-800 text-sm leading-snug flex-1">{pregunta}</p>
               </div>
               <textarea
+                disabled={soloLectura}
                 value={respuestas[i] ?? ''}
                 onChange={e => setRespuesta(i, e.target.value)}
                 placeholder="Escribe tu respuesta..."
@@ -869,11 +876,12 @@ export default function HojaViewer({
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-slate-900 text-sm leading-tight">Tu respuesta</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Se guarda automáticamente</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{soloLectura ? 'Así lo responde el alumno' : 'Se guarda automáticamente'}</p>
                 </div>
-                <SaveIndicator status={saveStatus} />
+                {!soloLectura && <SaveIndicator status={saveStatus} />}
               </div>
               <textarea
+                disabled={soloLectura}
                 value={texto}
                 onChange={e => setTexto(e.target.value)}
                 placeholder="Escribe tu respuesta aquí..."
@@ -893,7 +901,7 @@ export default function HojaViewer({
       )}
 
       {/* ── Tabla ────────────────────────────────────────────── */}
-      {hoja.tipo === 'tabla' && alumnoId && tablaFilas.length > 0 && tablaColumnas.length > 0 && (
+      {hoja.tipo === 'tabla' && tablaFilas.length > 0 && tablaColumnas.length > 0 && (
         <div className="px-4 pt-5 pb-3">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-2xl bg-teal-100 flex items-center justify-center flex-shrink-0">
@@ -901,9 +909,9 @@ export default function HojaViewer({
             </div>
             <div className="flex-1">
               <p className="font-semibold text-slate-900 text-sm leading-tight">Completa la tabla</p>
-              <p className="text-xs text-slate-400 mt-0.5">Se guarda automáticamente</p>
+              <p className="text-xs text-slate-400 mt-0.5">{soloLectura ? 'Así lo responde el alumno' : 'Se guarda automáticamente'}</p>
             </div>
-            <SaveIndicator status={saveStatus} />
+            {!soloLectura && <SaveIndicator status={saveStatus} />}
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200">
@@ -930,6 +938,7 @@ export default function HojaViewer({
                     {tablaColumnas.map((_, j) => (
                       <td key={j} className="p-1.5 border-r border-slate-100 last:border-r-0 align-top">
                         <textarea
+                          disabled={soloLectura}
                           value={tablaRespuestas[i]?.[j] ?? ''}
                           onChange={e => setTablaCell(i, j, e.target.value)}
                           rows={2}
