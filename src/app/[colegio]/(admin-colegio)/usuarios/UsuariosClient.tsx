@@ -42,6 +42,7 @@ export default function UsuariosClient({ usuarios, grupos, codigoColegio, rolAdm
   const [editando, setEditando] = useState<UsuarioConGrupos | null>(null)
   const [deleteError, setDeleteError] = useState<{ msg: string; usuario: Perfil } | null>(null)
   const [accesoAlumno, setAccesoAlumno] = useState<Perfil | null>(null)
+  const [resetPasswordUsuario, setResetPasswordUsuario] = useState<Perfil | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -141,6 +142,14 @@ export default function UsuariosClient({ usuarios, grupos, codigoColegio, rolAdm
         />
       )}
 
+      {/* Restablecer contraseña — catequista / admin_colegio */}
+      {resetPasswordUsuario && (
+        <ResetPasswordModal
+          usuario={resetPasswordUsuario}
+          onClose={() => setResetPasswordUsuario(null)}
+        />
+      )}
+
       {/* Edit modal */}
       {editando && (
         <EditarUsuarioModal
@@ -227,6 +236,15 @@ export default function UsuariosClient({ usuarios, grupos, codigoColegio, rolAdm
                         title="QR / Contraseña"
                       >
                         <QrCode className="w-4 h-4" />
+                      </button>
+                    )}
+                    {usuario.rol !== 'alumno' && (
+                      <button
+                        onClick={() => setResetPasswordUsuario(usuario)}
+                        className="p-1.5 rounded-lg hover:bg-violet-50 text-slate-400 hover:text-violet-600 transition-colors"
+                        title="Restablecer contraseña"
+                      >
+                        <RefreshCw className="w-4 h-4" />
                       </button>
                     )}
                     <button
@@ -554,6 +572,92 @@ function EditarUsuarioModal({
             {saving ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Restablecer contraseña — catequista / admin_colegio ─────────
+// Los alumnos entran con usuario + QR (ver AccesoAlumnoModal); catequistas y
+// administradores entran con su correo, así que este modal es más simple: sin
+// QR ni URL de acceso, solo la contraseña nueva para copiar y entregar.
+function ResetPasswordModal({ usuario, onClose }: { usuario: Perfil; onClose: () => void }) {
+  const [password, setPassword] = useState<string | null>(null)
+  const [resetting, setResetting] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleReset() {
+    setResetting(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/colegio/usuarios/${usuario.id}/reset-password`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'No se pudo restablecer la contraseña.'); return }
+      setPassword(data.password)
+    } catch {
+      setError('No se pudo restablecer la contraseña.')
+    } finally {
+      setResetting(false)
+    }
+  }
+
+  function handleCopy() {
+    if (!password) return
+    const lines = [
+      `${nombreCompleto(usuario)} (${labelRol(usuario.rol)})`,
+      `Correo: ${usuario.email ?? ''}`,
+      `Contraseña nueva: ${password}`,
+    ].join('\n')
+    navigator.clipboard.writeText(lines)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Restablecer contraseña" size="sm">
+      <div className="space-y-4">
+        <div className="text-center">
+          <p className="font-semibold text-slate-800">{nombreCompleto(usuario)}</p>
+          <p className="text-sm text-slate-400">{usuario.email}</p>
+        </div>
+
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
+        )}
+
+        {password ? (
+          <div className="bg-slate-50 rounded-xl p-4 text-center space-y-1">
+            <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">Contraseña nueva</p>
+            <p className="font-mono font-bold text-brand-700 text-2xl tracking-widest">{password}</p>
+          </div>
+        ) : (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+            Esto genera una contraseña nueva al instante. La actual deja de funcionar y tendrá que usar la nueva para volver a entrar.
+          </div>
+        )}
+
+        <button
+          onClick={handleReset}
+          disabled={resetting}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={cn('w-4 h-4', resetting && 'animate-spin')} />
+          {resetting ? 'Restableciendo...' : password ? 'Generar otra' : 'Restablecer contraseña'}
+        </button>
+
+        {password && (
+          <>
+            <button
+              onClick={handleCopy}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium transition-colors"
+            >
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copied ? 'Copiado' : 'Copiar datos'}
+            </button>
+            <p className="text-xs text-slate-400 text-center">Solo se ve una vez. Compártela de forma segura.</p>
+          </>
+        )}
       </div>
     </Modal>
   )

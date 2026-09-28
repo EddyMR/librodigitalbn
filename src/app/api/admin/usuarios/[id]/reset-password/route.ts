@@ -22,9 +22,13 @@ export async function POST(
 
   if (!perfil) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
 
-  // Generate a readable 6-char password (uppercase + digits, no ambiguous chars)
+  // Alumnos: contraseña corta y sin caracteres ambiguos, para escribirla a mano
+  // o leerla desde un QR impreso. Catequistas y administradores entran con su
+  // correo desde cualquier dispositivo, así que llevan una más larga.
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  const password = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  const charsLargo = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  const [alfabeto, longitud] = perfil.rol === 'alumno' ? [chars, 6] : [charsLargo, 12]
+  const password = Array.from({ length: longitud }, () => alfabeto[Math.floor(Math.random() * alfabeto.length)]).join('')
 
   const { error } = await admin.auth.admin.updateUserById(perfil.user_id, { password })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

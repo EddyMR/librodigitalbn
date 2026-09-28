@@ -45,21 +45,19 @@ export async function POST(request: NextRequest) {
   if (!grupo || grupo.colegio_id !== perfil.colegio_id)
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  // Delete any existing rows (handles duplicates cleanly)
-  const { error: delError } = await admin
+  // upsert en vez de delete+insert: dos peticiones casi simultáneas (doble tap,
+  // reintento tras error de red) podían llegar en el orden equivocado y la que
+  // "ganaba" era la última en ejecutarse en el servidor, no la última que pulsó
+  // el usuario — así se perdían asignaciones sin ningún error visible. Un solo
+  // upsert es atómico: no hay ventana entre borrar e insertar donde una
+  // petición concurrente pueda colarse.
+  const { error } = await admin
     .from('libro_grupos')
-    .delete()
-    .eq('grupo_id', grupo_id)
-    .eq('libro_id', libro_id)
-
-  if (delError) return NextResponse.json({ error: delError.message }, { status: 500 })
-
-  if (activo) {
-    const { error: insError } = await admin
-      .from('libro_grupos')
-      .insert({ grupo_id, libro_id, activo: true })
-    if (insError) return NextResponse.json({ error: insError.message }, { status: 500 })
-  }
+    .upsert(
+      { grupo_id, libro_id, activo: !!activo, asignado_at: new Date().toISOString() },
+      { onConflict: 'libro_id,grupo_id' }
+    )
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ ok: true })
 }

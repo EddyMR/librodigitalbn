@@ -34,11 +34,20 @@ export async function POST(
   if (!perfil || perfil.colegio_id !== adminPerfil.colegio_id)
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-  if (perfil.rol !== 'alumno')
-    return NextResponse.json({ error: 'Solo se puede restablecer para alumnos' }, { status: 400 })
-
+  // Antes solo se podía restablecer la contraseña de un alumno: un catequista
+  // o administrador que se quedaba fuera de su cuenta no tenía forma de
+  // recuperarla salvo que lo hiciera él mismo desde /perfil, con sesión activa
+  // — precisamente lo que no tiene si perdió el acceso. Ahora cualquier rol de
+  // este colegio puede restablecerse desde aquí.
+  //
+  // Alumnos: contraseña corta y sin caracteres ambiguos, pensada para
+  // escribirla a mano o leerla desde un QR impreso. Catequistas y
+  // administradores entran con su correo desde cualquier dispositivo, así que
+  // llevan una contraseña más larga.
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  const password = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  const charsLargo = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  const [alfabeto, longitud] = perfil.rol === 'alumno' ? [chars, 6] : [charsLargo, 12]
+  const password = Array.from({ length: longitud }, () => alfabeto[Math.floor(Math.random() * alfabeto.length)]).join('')
 
   const { error } = await admin.auth.admin.updateUserById(perfil.user_id, { password })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

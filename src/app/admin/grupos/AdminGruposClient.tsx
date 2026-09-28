@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Users, BookOpen, Plus, Trash2, Pencil, Search,
   X, Check, UserMinus, UserPlus,
-  AlertCircle, UserX, Printer,
+  AlertCircle, UserX, Printer, Loader2,
 } from 'lucide-react'
 import { Modal, Confirm, Toast } from '@/components/ui'
 import { nombreCompleto, avatarUrl, cn } from '@/lib/utils'
@@ -97,6 +97,8 @@ export default function AdminGruposClient({
   const [editandoGrupo, setEditandoGrupo] = useState<Grupo | null>(null)
   const [gestionandoAlumnos, setGestionandoAlumnos] = useState<{ grupo: Grupo; idx: number } | null>(null)
   const [asignandoLibros, setAsignandoLibros] = useState<{ grupo: Grupo; librosIds: string[] } | null>(null)
+  const [pendingLibros, setPendingLibros] = useState<Set<string>>(new Set())
+  const [confirmQuitarLibro, setConfirmQuitarLibro] = useState<{ libroId: string; titulo: string } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Grupo | null>(null)
   const [deleteError, setDeleteError] = useState<{ msg: string; grupo: Grupo } | null>(null)
   const [loadingLibros, setLoadingLibros] = useState(false)
@@ -116,38 +118,91 @@ export default function AdminGruposClient({
     setLoadingLibros(false)
   }
 
-  async function handleToggleLibro(libroId: string) {
+  // upsert en el servidor + bloqueo por libroId + setState funcional: el mismo
+  // arreglo que en el panel de colegio. Ver el comentario largo en
+  // GruposClient.tsx — esta copia tenía exactamente el mismo bug.
+  async function aplicarLibro(libroId: string, nuevoActivo: boolean) {
+    if (!asignandoLibros || pendingLibros.has(libroId)) return
+    setPendingLibros(prev => new Set(prev).add(libroId))
+
+    let ok = false
+    try {
+      const res = await fetch('/api/admin/libro-grupos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grupo_id: asignandoLibros.grupo.id, libro_id: libroId, activo: nuevoActivo }),
+      })
+      ok = res.ok
+    } catch {
+      ok = false
+    }
+
+    setPendingLibros(prev => { const n = new Set(prev); n.delete(libroId); return n })
+    if (!ok) { showToast('Error al actualizar', 'error'); return }
+
+    setAsignandoLibros(prev => {
+      if (!prev) return prev
+      const yaEstaba = prev.librosIds.includes(libroId)
+      if (nuevoActivo === yaEstaba) return prev
+      const librosIds = nuevoActivo
+        ? [...prev.librosIds, libroId]
+        : prev.librosIds.filter(id => id !== libroId)
+      return { ...prev, librosIds }
+    })
+  }
+
+  function handleToggleLibro(libroId: string, titulo: string) {
     if (!asignandoLibros) return
     const isAssigned = asignandoLibros.librosIds.includes(libroId)
-    const res = await fetch('/api/admin/libro-grupos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ grupo_id: asignandoLibros.grupo.id, libro_id: libroId, activo: !isAssigned }),
-    })
-    if (!res.ok) { showToast('Error al actualizar', 'error'); return }
-    const newIds = isAssigned
-      ? asignandoLibros.librosIds.filter(id => id !== libroId)
-      : [...asignandoLibros.librosIds, libroId]
-    setAsignandoLibros(p => p ? { ...p, librosIds: newIds } : null)
-    setLibroCountMap(prev => ({ ...prev, [asignandoLibros.grupo.id]: newIds.length }))
+    if (isAssigned) setConfirmQuitarLibro({ libroId, titulo })
+    else aplicarLibro(libroId, true)
   }
+
+  useEffect(() => {
+    if (!asignandoLibros) return
+    setLibroCountMap(prev => ({ ...prev, [asignandoLibros.grupo.id]: asignandoLibros.librosIds.length }))
+  }, [asignandoLibros])
 
   async function handleAsignarTodosLibros() {
     if (!asignandoLibros) return
     setLoadingLibros(true)
     const pendientes = libros.filter(l => !asignandoLibros.librosIds.includes(l.id))
+    // Se marcan como pendientes en el MISMO set que usa el toggle individual:
+    // así, si mientras corre el lote alguien pulsa uno de esos libros a mano,
+    // aplicarLibro lo ve bloqueado en vez de disparar una petición paralela
+    // para el mismo libro — la misma carrera que se arregló arriba, por otra
+    // puerta.
+    setPendingLibros(prev => {
+      const n = new Set(prev)
+      pendientes.forEach(l => n.add(l.id))
+      return n
+    })
+    // Solo se cuentan como asignados los que el servidor de verdad confirmó:
+    // antes se marcaban todos en la UI sin comprobar la respuesta, así que un
+    // fallo a mitad del lote quedaba invisible.
+    const asignadosOk: string[] = []
     for (const libro of pendientes) {
-      await fetch('/api/admin/libro-grupos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grupo_id: asignandoLibros.grupo.id, libro_id: libro.id, activo: true }),
-      })
+      try {
+        const res = await fetch('/api/admin/libro-grupos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ grupo_id: asignandoLibros.grupo.id, libro_id: libro.id, activo: true }),
+        })
+        if (res.ok) asignadosOk.push(libro.id)
+      } catch {}
     }
-    const newIds = libros.map(l => l.id)
-    setAsignandoLibros(p => p ? { ...p, librosIds: newIds } : null)
-    setLibroCountMap(prev => ({ ...prev, [asignandoLibros.grupo.id]: newIds.length }))
+    setAsignandoLibros(prev => prev ? { ...prev, librosIds: [...prev.librosIds, ...asignadosOk] } : prev)
+    setPendingLibros(prev => {
+      const n = new Set(prev)
+      pendientes.forEach(l => n.delete(l.id))
+      return n
+    })
     setLoadingLibros(false)
-    showToast(`${pendientes.length} libro${pendientes.length !== 1 ? 's' : ''} asignado${pendientes.length !== 1 ? 's' : ''}`)
+    if (asignadosOk.length < pendientes.length) {
+      showToast(`${asignadosOk.length} de ${pendientes.length} asignados — algunos fallaron`, 'error')
+    } else {
+      showToast(`${asignadosOk.length} libro${asignadosOk.length !== 1 ? 's' : ''} asignado${asignadosOk.length !== 1 ? 's' : ''}`)
+    }
   }
 
   function handleGrupoCreado(nuevoGrupo: Grupo) {
@@ -328,10 +383,26 @@ export default function AdminGruposClient({
           grupo={asignandoLibros.grupo}
           libros={libros}
           librosIds={asignandoLibros.librosIds}
+          pendingIds={pendingLibros}
           loading={loadingLibros}
           onToggle={handleToggleLibro}
           onAsignarTodos={handleAsignarTodosLibros}
           onClose={() => setAsignandoLibros(null)}
+        />
+      )}
+
+      {confirmQuitarLibro && (
+        <Confirm
+          open
+          title="Quitar libro del grupo"
+          message={`¿Quitar «${confirmQuitarLibro.titulo}» de este grupo? Sus alumnos ya no podrán verlo hasta que se asigne de nuevo.`}
+          confirmLabel="Quitar"
+          danger
+          onConfirm={() => {
+            aplicarLibro(confirmQuitarLibro.libroId, false)
+            setConfirmQuitarLibro(null)
+          }}
+          onCancel={() => setConfirmQuitarLibro(null)}
         />
       )}
 
@@ -936,13 +1007,14 @@ function GestionarAlumnosModal({
 }
 
 function AsignarLibrosModal({
-  grupo, libros, librosIds, loading, onToggle, onAsignarTodos, onClose,
+  grupo, libros, librosIds, pendingIds, loading, onToggle, onAsignarTodos, onClose,
 }: {
   grupo: Grupo
   libros: Libro[]
   librosIds: string[]
+  pendingIds: Set<string>
   loading: boolean
-  onToggle: (libroId: string) => void
+  onToggle: (libroId: string, titulo: string) => void
   onAsignarTodos: () => void
   onClose: () => void
 }) {
@@ -975,20 +1047,25 @@ function AsignarLibrosModal({
             <div className="space-y-2">
               {libros.map(libro => {
                 const assigned = librosIds.includes(libro.id)
+                const pending = pendingIds.has(libro.id)
                 return (
                   <button
                     key={libro.id}
-                    onClick={() => onToggle(libro.id)}
+                    onClick={() => onToggle(libro.id, libro.titulo)}
+                    disabled={pending}
                     className={cn(
                       'w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left',
+                      pending && 'opacity-60 cursor-wait',
                       assigned ? 'border-brand-400 bg-brand-50' : 'border-slate-200 bg-white hover:border-brand-200 hover:bg-slate-50'
                     )}
                   >
                     <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0', assigned ? 'bg-brand-600' : 'bg-slate-100')}>
-                      {assigned ? <Check className="w-4 h-4 text-white" /> : <BookOpen className="w-4 h-4 text-slate-400" />}
+                      {pending
+                        ? <Loader2 className={cn('w-4 h-4 animate-spin', assigned ? 'text-white' : 'text-slate-400')} />
+                        : assigned ? <Check className="w-4 h-4 text-white" /> : <BookOpen className="w-4 h-4 text-slate-400" />}
                     </div>
                     <p className={cn('font-semibold text-sm flex-1', assigned ? 'text-brand-900' : 'text-slate-700')}>{libro.titulo}</p>
-                    {assigned && <span className="text-xs text-brand-600 font-semibold">Asignado</span>}
+                    {assigned && !pending && <span className="text-xs text-brand-600 font-semibold">Asignado</span>}
                   </button>
                 )
               })}

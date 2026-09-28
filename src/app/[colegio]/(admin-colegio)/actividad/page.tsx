@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, MessageSquare, BookOpen } from 'lucide-react'
+import { ArrowLeft, MessageSquare, BookOpen, AlertTriangle } from 'lucide-react'
 import { getSession } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase'
 import { nombreCompleto, formatRelativo, cn } from '@/lib/utils'
@@ -270,16 +270,23 @@ function Tarjeta({ fila, codigo }: { fila: FilaActividad; codigo: string }) {
         />
       </div>
 
-      {fila.libros.map(l => (
-        <Link
-          key={l.id}
-          href={`/${codigo}/libros/${l.id}`}
-          className="mt-3 flex items-center gap-2 text-xs text-brand-600 hover:text-brand-700 font-medium"
-        >
-          <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
-          Ver «{l.titulo}» como lo ve el alumno
-        </Link>
-      ))}
+      {fila.libros.length === 0 ? (
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-amber-700 font-medium">
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+          Sin libro asignado — sus alumnos no pueden ver nada
+        </p>
+      ) : (
+        fila.libros.map(l => (
+          <Link
+            key={l.id}
+            href={`/${codigo}/libros/${l.id}`}
+            className="mt-3 flex items-center gap-2 text-xs text-brand-600 hover:text-brand-700 font-medium"
+          >
+            <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
+            Ver «{l.titulo}» como lo ve el alumno
+          </Link>
+        ))
+      )}
     </div>
   )
 }

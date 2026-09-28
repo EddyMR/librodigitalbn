@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { ArrowLeft, BookOpen, ChevronRight } from 'lucide-react'
+import { ArrowLeft, BookOpen, ChevronRight, AlertTriangle } from 'lucide-react'
 import GrupoAlumnosClient from './GrupoAlumnosClient'
 import type { Metadata } from 'next'
 
@@ -169,7 +169,19 @@ export default async function GrupoPage({ params }: Props) {
         </div>
       </div>
 
-      {(librosBase.data ?? []).length > 0 && (
+      {(librosBase.data ?? []).length === 0 ? (
+        <div className="px-4 pt-4">
+          <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3.5 flex items-start gap-3">
+            <AlertTriangle className="w-4.5 h-4.5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Este grupo no tiene libro asignado</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Tus alumnos no podrán ver nada hasta que el administrador del colegio le asigne uno desde «Grupos».
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
         <div className="px-4 pt-4 space-y-2">
           {(librosBase.data ?? []).map((l: any) => (
             <Link
